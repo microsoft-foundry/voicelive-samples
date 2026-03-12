@@ -1,7 +1,7 @@
 import React from 'react';
 import { Button, Text } from '@fluentui/react-components';
 import { Menu, MenuTrigger, MenuPopover, MenuList, MenuItem } from '@fluentui/react-components';
-import { MoreHorizontalRegular, SettingsRegular, TextAlignLeftRegular, ShieldCheckmarkRegular, PersonFeedbackRegular, ChatAddRegular } from '@fluentui/react-icons';
+import { MoreHorizontalRegular, Settings24Regular, TextAlignLeftRegular, ShieldRegular, PersonFeedbackRegular, ChatAddRegular, Open16Regular } from '@fluentui/react-icons';
 
 interface TopBarProps {
   agentName: string;
@@ -40,9 +40,9 @@ export const TopBar: React.FC<TopBarProps> = ({
             </MenuTrigger>
             <MenuPopover>
               <MenuList>
-                <MenuItem icon={<SettingsRegular />} onClick={() => onOpenSettings()}>Settings</MenuItem>
-                <MenuItem icon={<TextAlignLeftRegular />} onClick={() => window.open('https://aka.ms/aistudio/terms', '_blank')}>Terms of use ↗</MenuItem>
-                <MenuItem icon={<ShieldCheckmarkRegular />} onClick={() => window.open('https://go.microsoft.com/fwlink/?linkid=521839', '_blank')}>Privacy ↗</MenuItem>
+                <MenuItem icon={<Settings24Regular />} onClick={() => onOpenSettings()}>Settings</MenuItem>
+                <MenuItem icon={<TextAlignLeftRegular />} onClick={() => window.open('https://aka.ms/aistudio/terms', '_blank')}>Terms of use <Open16Regular style={{ marginLeft: '4px', opacity: 0.6 }} /></MenuItem>
+                <MenuItem icon={<ShieldRegular />} onClick={() => window.open('https://go.microsoft.com/fwlink/?linkid=521839', '_blank')}>Privacy <Open16Regular style={{ marginLeft: '4px', opacity: 0.6 }} /></MenuItem>
                 <MenuItem icon={<PersonFeedbackRegular />}>Send feedback</MenuItem>
               </MenuList>
             </MenuPopover>

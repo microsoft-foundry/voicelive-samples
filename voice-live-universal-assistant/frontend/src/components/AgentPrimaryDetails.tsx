@@ -15,7 +15,6 @@ export const AgentPrimaryDetails: React.FC<AgentPrimaryDetailsProps> = ({
 }) => {
   return (
     <div style={containerStyle}>
-      <div style={iconStyle}>🤖</div>
       <h2 style={nameStyle}>{name || 'Voice Assistant'}</h2>
       {description && <p style={descStyle}>{description}</p>}
     </div>
@@ -28,11 +27,6 @@ const containerStyle: React.CSSProperties = {
   alignItems: 'center',
   gap: '8px',
   padding: '16px',
-};
-
-const iconStyle: React.CSSProperties = {
-  fontSize: '48px',
-  lineHeight: 1,
 };
 
 const nameStyle: React.CSSProperties = {
