@@ -424,10 +424,19 @@ class VoiceLiveHandler:
     async def _handle_event(self, event, connection) -> None:  # noqa: C901
         t = event.type
 
-        # -- Session ready ------------------------------------------------
-        if t == ServerEventType.SESSION_UPDATED:
-            # Log the session config echoed back by the service
+        # -- Session created (carries service session ID) ------------------
+        if t == ServerEventType.SESSION_CREATED:
             session_obj = getattr(event, "session", None)
+            self._service_session_id = getattr(session_obj, "id", "") if session_obj else ""
+            logger.info(f"[{self.client_id}] SESSION_CREATED — session_id: {self._service_session_id}")
+
+        # -- Session ready ------------------------------------------------
+        elif t == ServerEventType.SESSION_UPDATED:
+            session_obj = getattr(event, "session", None)
+            # Pick up session ID if not captured from SESSION_CREATED
+            if not getattr(self, "_service_session_id", ""):
+                self._service_session_id = getattr(session_obj, "id", "") if session_obj else ""
+
             if session_obj:
                 try:
                     session_dict = session_obj.as_dict() if hasattr(session_obj, "as_dict") else str(session_obj)
@@ -442,6 +451,7 @@ class VoiceLiveHandler:
 
             await self.send({
                 "type": "session_started",
+                "session_id": getattr(self, "_service_session_id", "") or self.client_id,
                 "config": {
                     "mode": self.config.mode,
                     "model": self.config.model,
