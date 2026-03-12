@@ -641,6 +641,9 @@ const headerStyle: React.CSSProperties = {
 
 const fieldStyle: React.CSSProperties = {
   marginBottom: '16px',
+  display: 'flex',
+  flexDirection: 'column',
+  gap: '4px',
 };
 
 const segmentedStyle: React.CSSProperties = {
