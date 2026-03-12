@@ -155,7 +155,7 @@ const App: React.FC = () => {
 };
 
 /* Reference-matched styles */
-const agentDetailsStyle: React.CSSProperties = { overflow: 'auto', padding: '0 24px', textAlign: 'center', display: 'flex', flexDirection: 'column', gap: '4px', zIndex: 1 };
+const agentDetailsStyle: React.CSSProperties = { overflow: 'auto', padding: '0 24px', textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px', zIndex: 1 };
 const idlePanelStyle: React.CSSProperties = { display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px', flex: 1, justifyContent: 'center', zIndex: 1, textAlign: 'center', padding: '0 24px' };
 const idleTitleStyle: React.CSSProperties = { fontSize: '20px', fontWeight: 600, color: 'var(--fg-1)', marginTop: '8px' };
 const idleSubtitleStyle: React.CSSProperties = { fontSize: '14px', color: 'var(--fg-2)', maxWidth: '250px', textAlign: 'center' };

@@ -69,8 +69,7 @@ const containerStyle: React.CSSProperties = {
   alignItems: 'center',
   height: '100%',
   boxSizing: 'border-box',
-  gap: '20px',
-  justifyContent: 'center',
+  gap: '12px',
 };
 
 const transcriptAreaStyle: React.CSSProperties = {

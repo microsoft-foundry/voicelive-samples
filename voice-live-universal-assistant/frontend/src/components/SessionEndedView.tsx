@@ -43,7 +43,7 @@ const containerStyle: React.CSSProperties = {
 
 const sessionIdBoxStyle: React.CSSProperties = {
   padding: '6px 12px',
-  border: '1px solid var(--colorNeutralStroke2, #e0e0e0)',
+  border: '1px solid var(--colorNeutralStroke1, #d1d1d1)',
   borderRadius: '4px',
   fontSize: '13px',
   fontFamily: 'monospace',
