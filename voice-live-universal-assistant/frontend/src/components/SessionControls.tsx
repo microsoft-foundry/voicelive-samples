@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useCallback } from 'react';
 import {
   ClosedCaption24Regular,
   ClosedCaptionOff24Regular,
@@ -6,6 +6,12 @@ import {
   MicOff24Regular,
   Dismiss24Regular,
 } from '@fluentui/react-icons';
+
+/* Hover/active handler matching reference: Fg2 → Fg1 on hover, scale(0.92) on active */
+const hoverIn = (e: React.MouseEvent<HTMLButtonElement>) => { e.currentTarget.style.color = 'var(--colorNeutralForeground1, #242424)'; };
+const hoverOut = (e: React.MouseEvent<HTMLButtonElement>) => { e.currentTarget.style.color = 'var(--colorNeutralForeground2, #424242)'; };
+const activeIn = (e: React.MouseEvent<HTMLButtonElement>) => { e.currentTarget.style.transform = 'scale(0.92)'; };
+const activeOut = (e: React.MouseEvent<HTMLButtonElement>) => { e.currentTarget.style.transform = ''; };
 
 interface SessionControlsProps {
   isCCEnabled: boolean;
@@ -20,8 +26,9 @@ export const SessionControls: React.FC<SessionControlsProps> = ({
 }) => {
   return (
     <div style={actionBarStyle}>
-      {/* CC — icon-only, transparent, lighter neutral color */}
-      <button onClick={onToggleCC} aria-label="Toggle closed captions" title="Closed captions" style={iconButtonStyle}>
+      {/* CC — icon-only, transparent, Fg2 at rest, Fg1 on hover */}
+      <button onClick={onToggleCC} aria-label="Toggle closed captions" title="Closed captions" style={iconButtonStyle}
+        onMouseEnter={hoverIn} onMouseLeave={hoverOut} onMouseDown={activeIn} onMouseUp={activeOut}>
         {isCCEnabled ? <ClosedCaption24Regular /> : <ClosedCaptionOff24Regular />}
       </button>
 
@@ -35,8 +42,9 @@ export const SessionControls: React.FC<SessionControlsProps> = ({
         {isMuted ? <MicOff24Regular /> : <Mic24Regular />}
       </button>
 
-      {/* End — icon-only dismiss X, transparent */}
-      <button onClick={onEndSession} aria-label="End session" title="End session" style={iconButtonStyle}>
+      {/* End — icon-only dismiss X, Fg2 at rest, Fg1 on hover */}
+      <button onClick={onEndSession} aria-label="End session" title="End session" style={iconButtonStyle}
+        onMouseEnter={hoverIn} onMouseLeave={hoverOut} onMouseDown={activeIn} onMouseUp={activeOut}>
         <Dismiss24Regular />
       </button>
     </div>
@@ -53,20 +61,21 @@ const actionBarStyle: React.CSSProperties = {
   flexShrink: 0,
 };
 
-/* Reference: .iconButton — 40x40, transparent, no border, lighter neutral color at rest */
+/* Reference: .iconButton — 40x40, transparent, no border, Fg2 at rest, Fg1 on hover */
 const iconButtonStyle: React.CSSProperties = {
   width: '40px',
   height: '40px',
   padding: '8px',
   border: 'none',
   borderRadius: 'var(--borderRadiusCircular, 9999px)',
-  color: 'var(--colorNeutralForeground3, #707070)',
+  color: 'var(--colorNeutralForeground2, #424242)',
   background: 'transparent',
   cursor: 'pointer',
   display: 'flex',
   alignItems: 'center',
   justifyContent: 'center',
   fontFamily: 'inherit',
+  transition: 'color 120ms ease',
 };
 
 /* Reference: .micOnlyButton — 40x40, brand border, brandFg1, neutral bg1 */

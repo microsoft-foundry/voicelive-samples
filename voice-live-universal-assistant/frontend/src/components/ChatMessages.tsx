@@ -73,7 +73,7 @@ const bubbleStyle: React.CSSProperties = {
 };
 
 const userBubbleStyle: React.CSSProperties = {
-  background: 'var(--brand-blue)',
+  background: 'var(--colorBrandBackground, var(--voice-primary))',
   color: '#fff',
   borderBottomRightRadius: '4px',
 };
