@@ -13,12 +13,10 @@ export const SessionEndedView: React.FC<SessionEndedViewProps> = ({
 }) => {
   return (
     <div style={containerStyle}>
-      {/* Session ID in bordered box — matches reference */}
-      {sessionId && (
-        <div style={sessionIdBoxStyle}>
-          Chat session ID: {sessionId}
-        </div>
-      )}
+      {/* Session ID in bordered box — always show */}
+      <div style={sessionIdBoxStyle}>
+        Chat session ID: {sessionId || 'N/A'}
+      </div>
 
       <div style={transcriptStyle}>
         {transcripts.filter(t => t.isFinal).map((entry, idx) => (
