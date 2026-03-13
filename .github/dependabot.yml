@@ -1,0 +1,262 @@
+version: 2
+updates:
+  # === Python ===
+
+  - package-ecosystem: "pip"
+    directory: "/python/voice-live-avatar"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 10
+    reviewers:
+      - "microsoft-foundry/voicelive-repo-maintainers"
+    labels:
+      - "dependencies"
+      - "python"
+
+  - package-ecosystem: "pip"
+    directory: "/python/voice-live-quickstarts"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 10
+    reviewers:
+      - "microsoft-foundry/voicelive-repo-maintainers"
+    labels:
+      - "dependencies"
+      - "python"
+
+  - package-ecosystem: "pip"
+    directory: "/python/voice-live-quickstarts/AgentsNewQuickstart"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 5
+    reviewers:
+      - "microsoft-foundry/voicelive-repo-maintainers"
+    labels:
+      - "dependencies"
+      - "python"
+
+  - package-ecosystem: "pip"
+    directory: "/python/voice-live-voicerag-assistant/app/backend"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 10
+    reviewers:
+      - "microsoft-foundry/voicelive-repo-maintainers"
+    labels:
+      - "dependencies"
+      - "python"
+
+  - package-ecosystem: "pip"
+    directory: "/voice-live-universal-assistant/python"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 10
+    reviewers:
+      - "microsoft-foundry/voicelive-repo-maintainers"
+    labels:
+      - "dependencies"
+      - "python"
+
+  # === JavaScript / npm ===
+
+  - package-ecosystem: "npm"
+    directory: "/javascript/basic-web-voice-assistant"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 10
+    reviewers:
+      - "microsoft-foundry/voicelive-repo-maintainers"
+    labels:
+      - "dependencies"
+      - "javascript"
+
+  - package-ecosystem: "npm"
+    directory: "/javascript/voice-live-car-demo"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 10
+    reviewers:
+      - "microsoft-foundry/voicelive-repo-maintainers"
+    labels:
+      - "dependencies"
+      - "javascript"
+
+  - package-ecosystem: "npm"
+    directory: "/javascript/voice-live-interpreter-demo"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 10
+    reviewers:
+      - "microsoft-foundry/voicelive-repo-maintainers"
+    labels:
+      - "dependencies"
+      - "javascript"
+
+  - package-ecosystem: "npm"
+    directory: "/javascript/voice-live-trader-demo"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 10
+    reviewers:
+      - "microsoft-foundry/voicelive-repo-maintainers"
+    labels:
+      - "dependencies"
+      - "javascript"
+
+  - package-ecosystem: "npm"
+    directory: "/javascript/voice-live-avatar"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 10
+    reviewers:
+      - "microsoft-foundry/voicelive-repo-maintainers"
+    labels:
+      - "dependencies"
+      - "javascript"
+
+  - package-ecosystem: "npm"
+    directory: "/javascript/voice-live-quickstarts/ModelQuickstart"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 5
+    reviewers:
+      - "microsoft-foundry/voicelive-repo-maintainers"
+    labels:
+      - "dependencies"
+      - "javascript"
+
+  - package-ecosystem: "npm"
+    directory: "/javascript/voice-live-quickstarts/AgentsNewQuickstart"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 5
+    reviewers:
+      - "microsoft-foundry/voicelive-repo-maintainers"
+    labels:
+      - "dependencies"
+      - "javascript"
+
+  - package-ecosystem: "npm"
+    directory: "/voice-live-universal-assistant/javascript"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 10
+    reviewers:
+      - "microsoft-foundry/voicelive-repo-maintainers"
+    labels:
+      - "dependencies"
+      - "javascript"
+
+  - package-ecosystem: "npm"
+    directory: "/voice-live-universal-assistant/frontend"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 10
+    reviewers:
+      - "microsoft-foundry/voicelive-repo-maintainers"
+    labels:
+      - "dependencies"
+      - "javascript"
+
+  - package-ecosystem: "npm"
+    directory: "/python/voice-live-voicerag-assistant/app/frontend"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 10
+    reviewers:
+      - "microsoft-foundry/voicelive-repo-maintainers"
+    labels:
+      - "dependencies"
+      - "javascript"
+
+  # === C# / NuGet ===
+
+  - package-ecosystem: "nuget"
+    directory: "/csharp/voice-live-quickstarts/ModelQuickstart"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 5
+    reviewers:
+      - "microsoft-foundry/voicelive-repo-maintainers"
+    labels:
+      - "dependencies"
+      - "csharp"
+
+  - package-ecosystem: "nuget"
+    directory: "/csharp/voice-live-quickstarts/AgentQuickstart"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 5
+    reviewers:
+      - "microsoft-foundry/voicelive-repo-maintainers"
+    labels:
+      - "dependencies"
+      - "csharp"
+
+  - package-ecosystem: "nuget"
+    directory: "/csharp/voice-live-quickstarts/BringYourOwnModelQuickstart"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 5
+    reviewers:
+      - "microsoft-foundry/voicelive-repo-maintainers"
+    labels:
+      - "dependencies"
+      - "csharp"
+
+  - package-ecosystem: "nuget"
+    directory: "/csharp/voice-live-quickstarts/AgentsNewQuickstart"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 5
+    reviewers:
+      - "microsoft-foundry/voicelive-repo-maintainers"
+    labels:
+      - "dependencies"
+      - "csharp"
+
+  - package-ecosystem: "nuget"
+    directory: "/csharp/CustomerServiceBot"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 5
+    reviewers:
+      - "microsoft-foundry/voicelive-repo-maintainers"
+    labels:
+      - "dependencies"
+      - "csharp"
+
+  - package-ecosystem: "nuget"
+    directory: "/voice-live-universal-assistant/csharp"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 5
+    reviewers:
+      - "microsoft-foundry/voicelive-repo-maintainers"
+    labels:
+      - "dependencies"
+      - "csharp"
+
+  # === Java / Maven ===
+
+  - package-ecosystem: "maven"
+    directory: "/java/voice-live-quickstarts/ModelQuickstart"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 5
+    reviewers:
+      - "microsoft-foundry/voicelive-repo-maintainers"
+    labels:
+      - "dependencies"
+      - "java"
+
+  - package-ecosystem: "maven"
+    directory: "/voice-live-universal-assistant/java"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 5
+    reviewers:
+      - "microsoft-foundry/voicelive-repo-maintainers"
+    labels:
+      - "dependencies"
+      - "java"
