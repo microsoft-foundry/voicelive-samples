@@ -8,6 +8,9 @@ Web-based code samples for the [Azure Speech Voice Live API](https://learn.micro
 ┌─────────────────────┐   WebSocket    ┌──────────────────┐   Voice Live SDK   ┌──────────────┐
 │  React + Vite       │◄──────────────►│  Backend Server  │◄─────────────────►│  Azure Voice  │
 │  (shared frontend)  │  JSON + PCM16  │  (Python/JS/…)   │   PCM16 + events  │  Live Service │
+│                     │  or JSON text  │                  │                    │              │
+│  Voice mode: mic    │                │                  │                    │              │
+│  Text mode: chat    │                │                  │                    │              │
 └─────────────────────┘                └──────────────────┘                    └──────────────┘
 ```
 
@@ -199,6 +202,56 @@ Open **http://localhost:8000** in your browser.
 
 Switch modes by setting `VOICELIVE_MODE` in `.env` or via the Settings panel in the UI.
 
+## Frontend URL Query Parameters
+
+The frontend accepts URL query parameters to customize behavior without changing server configuration. These parameters control UI appearance, input mode, and pre-fill settings.
+
+| Parameter | Values | Default | Description |
+|-----------|--------|---------|-------------|
+| `?mode=voice\|text` | `voice`, `text` | `voice` | Lock the input mode. `voice` = microphone-based interaction with real-time audio. `text` = chat-style text input. When set, the mode toggle in the menu is hidden. |
+| `?lock=true` | `true` | `false` | Kiosk/embed mode — hides the settings gear and mode toggle entirely. The app uses only server-provided configuration. |
+| `?agent=NAME` | any string | — | Pre-fills the agent name in settings and automatically sets connection mode to `agent` (when used together with `?project=`). |
+| `?project=NAME` | any string | — | Pre-fills the project name in settings and automatically sets connection mode to `agent` (when used together with `?agent=`). |
+| `?theme=light\|dark` | `light`, `dark` | system | Override the UI theme. Without this, the app follows the system preference. |
+| `?greeting=false` | `false` | `true` | Disable the proactive greeting that the agent sends when a session starts. |
+
+**Examples:**
+
+```
+# Voice mode with agent pre-configured (typical embed scenario)
+https://your-app.azurecontainerapps.io/?agent=my-agent&project=my-project&lock=true
+
+# Text mode for chat-style interaction
+https://your-app.azurecontainerapps.io/?mode=text
+
+# Light theme, no greeting
+https://your-app.azurecontainerapps.io/?theme=light&greeting=false
+```
+
+## Text Mode
+
+The text mode (`?mode=text`) provides a chat-style text input interface as an alternative to voice interaction.
+
+> **Important:** Text mode is powered by the **Voice Live API's text modality**, not the Foundry Agent Service REST API. The same WebSocket connection and Voice Live session are used — the only difference is that user input is sent as text messages (`send_text`) instead of audio chunks. The agent's response audio can be optionally played back or muted.
+
+**Text mode features:**
+- Chat-style message bubbles with auto-scroll
+- **Audio playback toggle** (speaker icon) — defaults to **off**; when enabled, the agent's spoken response audio plays through the browser
+- **Barge-in** — sending a new message automatically interrupts any playing agent audio
+- Text input bar with send button, positioned within the main content area
+- Dismiss (✕) button to end the session
+
+**Text vs Voice comparison:**
+
+| Aspect | Voice Mode | Text Mode |
+|--------|-----------|-----------|
+| User input | Microphone audio (PCM16) | Typed text messages |
+| Agent response | Audio playback (always on) | Text bubbles (audio optional, default off) |
+| Barge-in | Speaking interrupts agent | Sending text interrupts agent |
+| Transport | Voice Live WebSocket | Voice Live WebSocket (same) |
+| API | Voice Live text+audio modality | Voice Live text modality |
+| Backend | Same session handler | Same session handler |
+
 ## Project Structure
 
 ```
@@ -377,8 +430,9 @@ The frontend and backend communicate over WebSocket at `/ws/{clientId}`.
 | Client → Server | `start_session` | Begin voice session with config |
 | Client → Server | `audio_chunk` | Base64 PCM16 mic audio (24kHz, mono) |
 | Client → Server | `interrupt` | Cancel current agent response |
+| Client → Server | `send_text` | Send text message (text mode) |
 | Client → Server | `stop_session` | End the session |
-| Server → Client | `session_started` | Session ready, includes config |
+| Server → Client | `session_started` | Session ready, includes config and session_id |
 | Server → Client | `audio_data` | Base64 PCM16 agent audio response |
 | Server → Client | `transcript` | User or assistant transcript text |
 | Server → Client | `status` | State change (listening/thinking/speaking) |
@@ -402,6 +456,8 @@ All backends pin the API version to `2026-01-01-preview` (the SDK defaults to GA
 - **Interim Response** is disabled (greyed out) when a realtime model is selected in model mode — it only works with agent mode or text models using cascaded pipelines (Azure Speech transcription).
 - **Start Session** button is disabled when in agent mode and Agent Name or Project are empty, with a helper message directing the user to Settings.
 - **Transcription model** is auto-corrected to `azure-speech` when a text model is selected (cascaded pipelines only support `azure-speech`).
+- **Agent mode toggle** is disabled in Settings when no agent is configured on the server (agent name and project both empty). This prevents users from switching to agent mode when the server has no agent setup.
+- **Audio playback** in text mode defaults to off. When muted, audio data from the service is completely skipped (not decoded) to avoid unnecessary resource usage.
 
 ### Validation Guard Matrix
 
