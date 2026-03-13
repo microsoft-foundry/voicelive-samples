@@ -28,6 +28,7 @@ public class VoiceLiveHandler
     private Task? _eventTask;
     private volatile bool _running;
     private bool _greetingSent;
+    private string _serviceSessionId = "";
     private readonly StringBuilder _assistantTranscript = new();
 
     public VoiceLiveHandler(
@@ -386,11 +387,25 @@ public class VoiceLiveHandler
     {
         switch (serverEvent)
         {
+            // -- Session created (carries service session ID) -----------------
+            case SessionUpdateSessionCreated created:
+                var createdSession = created.Session;
+                _serviceSessionId = createdSession?.Id ?? "";
+                _logger.LogInformation("[{ClientId}] SESSION_CREATED — session_id: {SessionId}", _config.ClientId, _serviceSessionId);
+                break;
+
             // -- Session ready ------------------------------------------------
-            case SessionUpdateSessionUpdated:
+            case SessionUpdateSessionUpdated updated:
+                // Pick up session ID if not captured from SESSION_CREATED
+                if (string.IsNullOrEmpty(_serviceSessionId))
+                {
+                    _serviceSessionId = updated.Session?.Id ?? "";
+                }
+
                 await _sendMessage(new Dictionary<string, object>
                 {
                     ["type"] = "session_started",
+                    ["session_id"] = !string.IsNullOrEmpty(_serviceSessionId) ? _serviceSessionId : _config.ClientId,
                     ["config"] = new Dictionary<string, object>
                     {
                         ["mode"] = _config.Mode,

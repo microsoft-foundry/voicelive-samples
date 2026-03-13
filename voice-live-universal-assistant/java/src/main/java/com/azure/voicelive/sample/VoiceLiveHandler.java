@@ -73,6 +73,7 @@ public class VoiceLiveHandler {
     private volatile boolean running = false;
     private volatile boolean greetingSent = false;
     private final StringBuilder assistantTranscript = new StringBuilder();
+    private volatile String serviceSessionId = "";
 
     public VoiceLiveHandler(String clientId, String endpoint, Object credential,
                             Consumer<Map<String, Object>> sendMessage, SessionConfig config) {
@@ -372,7 +373,17 @@ public class VoiceLiveHandler {
         try {
             ServerEventType type = event.getType();
 
-            if (ServerEventType.SESSION_UPDATED.equals(type)) {
+            if (ServerEventType.SESSION_CREATED.equals(type)) {
+                // Capture service session ID
+                var session = event.getSession();
+                serviceSessionId = session != null && session.getId() != null ? session.getId() : "";
+                logger.info("[{}] SESSION_CREATED — session_id: {}", clientId, serviceSessionId);
+            } else if (ServerEventType.SESSION_UPDATED.equals(type)) {
+                // Pick up session ID if not captured from SESSION_CREATED
+                if (serviceSessionId.isEmpty()) {
+                    var session = event.getSession();
+                    serviceSessionId = session != null && session.getId() != null ? session.getId() : "";
+                }
                 handleSessionUpdated();
             } else if (ServerEventType.INPUT_AUDIO_BUFFER_SPEECH_STARTED.equals(type)) {
                 handleSpeechStarted();
@@ -408,6 +419,7 @@ public class VoiceLiveHandler {
 
         Map<String, Object> msg = new HashMap<>();
         msg.put("type", "session_started");
+        msg.put("session_id", !serviceSessionId.isEmpty() ? serviceSessionId : clientId);
         msg.put("config", configMap);
         sendMessage.accept(msg);
 

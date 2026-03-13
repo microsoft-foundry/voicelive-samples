@@ -252,9 +252,14 @@ export class VoiceHandler {
         }
       },
 
-      // Catch-all — handles session.updated and any other server events
+      // Catch-all — handles session events and any other server events
       onServerEvent: async (event, _context) => {
         const eventType = event?.type || "";
+
+        if (eventType === "session.created") {
+          this._serviceSessionId = event?.session?.id || "";
+          console.log(`[${this.clientId}] SESSION_CREATED — session_id: ${this._serviceSessionId}`);
+        }
 
         if (eventType === "session.updated") {
           this._handleSessionUpdated(event);
@@ -269,6 +274,11 @@ export class VoiceHandler {
 
   _handleSessionUpdated(event) {
     const sessionObj = event?.session;
+    // Pick up session ID if not captured from session.created
+    if (!this._serviceSessionId) {
+      this._serviceSessionId = sessionObj?.id || "";
+    }
+
     if (sessionObj) {
       try {
         console.log(
@@ -284,6 +294,7 @@ export class VoiceHandler {
 
     this.sendMessage({
       type: "session_started",
+      session_id: this._serviceSessionId || this.clientId,
       config: {
         mode: this.config.mode,
         model: this.config.model,
