@@ -27,7 +27,7 @@
     "lucide-react": "^0.453.0",
     "microsoft-cognitiveservices-speech-sdk": "^1.44.1",
     "next": "^16.0.10",
-    "react": "19.2.1",
+    "react": "19.2.4",
     "react-dom": "19.2.1",
     "react-markdown": "^9.0.3",
     "tailwind-merge": "^2.5.4",
