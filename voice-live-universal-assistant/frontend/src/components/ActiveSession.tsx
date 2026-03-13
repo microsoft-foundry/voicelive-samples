@@ -35,21 +35,27 @@ export const ActiveSession: React.FC<ActiveSessionProps> = ({
 
   return (
     <div style={containerStyle}>
-      {/* Transcript area — above the orb when CC is on */}
-      {hasTranscripts && (
-        <div style={transcriptAreaStyle}>
-          <TranscriptOverlay transcripts={transcripts} />
+      {hasTranscripts ? (
+        /* CC active layout: transcript fills space, status text inline, no orb */
+        <>
+          <div style={transcriptAreaStyle}>
+            <TranscriptOverlay transcripts={transcripts} />
+          </div>
+          <div style={statusOnlyStyle}>
+            <Text weight="semibold" size={400} style={{ color: 'var(--colorNeutralForeground1, var(--fg-1))' }}>
+              {statusTextMap[state] || ''}
+            </Text>
+          </div>
+        </>
+      ) : (
+        /* Normal voice layout: orb centered with status text */
+        <div style={orbAreaStyle}>
+          <VoiceOrb state={state} />
+          <Text weight="semibold" size={400} style={{ color: 'var(--colorNeutralForeground1, var(--fg-1))' }}>
+            {statusTextMap[state] || ''}
+          </Text>
         </div>
       )}
-
-      {/* Orb area — reference hides circle when captions are active */}
-      <div style={hasTranscripts ? orbAreaCompactStyle : orbAreaStyle}>
-        <VoiceOrb state={state} captionsActive={hasTranscripts} />
-        {/* Status text — reference: Subtitle2 preset */}
-        <Text weight="semibold" size={400} style={{ color: 'var(--colorNeutralForeground1, var(--fg-1))' }}>
-          {statusTextMap[state] || ''}
-        </Text>
-      </div>
 
       <SessionControls
         isCCEnabled={isCCEnabled}
@@ -90,11 +96,10 @@ const orbAreaStyle: React.CSSProperties = {
   justifyContent: 'center',
 };
 
-const orbAreaCompactStyle: React.CSSProperties = {
+/* CC mode: just status text, minimal height */
+const statusOnlyStyle: React.CSSProperties = {
   display: 'flex',
-  flexDirection: 'column',
-  alignItems: 'center',
-  gap: '16px',
-  padding: '16px 0',
+  justifyContent: 'center',
+  padding: '4px 0',
   flexShrink: 0,
 };
