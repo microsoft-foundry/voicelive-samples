@@ -4,10 +4,11 @@ const SAMPLE_RATE = 24000;
 
 export function useAudioPlayback() {
   const [isPlaying, setIsPlaying] = useState(false);
-  const [isPlaybackMuted, setIsPlaybackMuted] = useState(true); // default OFF per spec
+  const [isPlaybackMuted, setIsPlaybackMuted] = useState(true); // text mode default: muted
   const audioContextRef = useRef<AudioContext | null>(null);
   const workletNodeRef = useRef<AudioWorkletNode | null>(null);
   const gainNodeRef = useRef<GainNode | null>(null);
+  const isMutedRef = useRef(true);
 
   const initPlayback = useCallback(async () => {
     if (audioContextRef.current) return;
@@ -20,31 +21,29 @@ export function useAudioPlayback() {
     const workletNode = new AudioWorkletNode(audioContext, 'audio-playback-processor');
     workletNodeRef.current = workletNode;
 
-    // Gain node for mute control
     const gainNode = audioContext.createGain();
     gainNodeRef.current = gainNode;
-    gainNode.gain.value = 0; // default muted
+    // Start with full volume — voice mode always plays; text mode mute is handled at playAudio level
+    gainNode.gain.value = 1;
     workletNode.connect(gainNode);
     gainNode.connect(audioContext.destination);
   }, []);
-
-  const isMutedRef = useRef(true); // track mute state for playAudio check
 
   const togglePlaybackMute = useCallback(() => {
     setIsPlaybackMuted((prev) => {
       const next = !prev;
       isMutedRef.current = next;
-      if (gainNodeRef.current) {
-        gainNodeRef.current.gain.value = next ? 0 : 1;
-      }
       return next;
     });
   }, []);
 
+  const resetPlaybackMute = useCallback(() => {
+    setIsPlaybackMuted(true);
+    isMutedRef.current = true;
+  }, []);
+
   const playAudio = useCallback(
     async (base64Data: string) => {
-      // Skip processing entirely when muted — avoid unnecessary decode + worklet overhead
-      if (isMutedRef.current) return;
       if (!audioContextRef.current || !workletNodeRef.current) {
         await initPlayback();
       }
@@ -86,5 +85,5 @@ export function useAudioPlayback() {
     audioContextRef.current = null;
   }, [stopPlayback]);
 
-  return { playAudio, stopPlayback, isPlaying, initPlayback, cleanupPlayback, isPlaybackMuted, togglePlaybackMute };
+  return { playAudio, stopPlayback, isPlaying, initPlayback, cleanupPlayback, isPlaybackMuted, togglePlaybackMute, resetPlaybackMute };
 }
