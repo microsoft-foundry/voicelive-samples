@@ -323,13 +323,15 @@ export function useVoiceSession() {
   /** Send a text message via Voice Live (conversation.item.create + response.create). */
   const sendTextMessage = useCallback((text: string) => {
     if (!text.trim()) return;
+    // Barge-in: stop any playing audio when user sends input
+    stopPlayback();
     // Add user transcript immediately for responsive UI
     setTranscripts((prev) => [
       ...prev,
       { role: 'user', text: text.trim(), isFinal: true, timestamp: Date.now() },
     ]);
     sendWsMessage('send_text', { text: text.trim() });
-  }, [sendWsMessage]);
+  }, [sendWsMessage, stopPlayback]);
 
   // Cleanup on unmount
   useEffect(() => {

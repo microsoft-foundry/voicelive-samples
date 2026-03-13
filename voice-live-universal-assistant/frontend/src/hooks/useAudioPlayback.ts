@@ -28,9 +28,12 @@ export function useAudioPlayback() {
     gainNode.connect(audioContext.destination);
   }, []);
 
+  const isMutedRef = useRef(true); // track mute state for playAudio check
+
   const togglePlaybackMute = useCallback(() => {
     setIsPlaybackMuted((prev) => {
       const next = !prev;
+      isMutedRef.current = next;
       if (gainNodeRef.current) {
         gainNodeRef.current.gain.value = next ? 0 : 1;
       }
@@ -40,6 +43,8 @@ export function useAudioPlayback() {
 
   const playAudio = useCallback(
     async (base64Data: string) => {
+      // Skip processing entirely when muted — avoid unnecessary decode + worklet overhead
+      if (isMutedRef.current) return;
       if (!audioContextRef.current || !workletNodeRef.current) {
         await initPlayback();
       }

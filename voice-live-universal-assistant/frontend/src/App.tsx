@@ -177,7 +177,7 @@ const startButtonStyle: React.CSSProperties = { minWidth: '120px', maxWidth: '20
 
 /* Text mode — inside grid, same position as voice mode */
 const textChatContainerStyle: React.CSSProperties = { display: 'flex', flexDirection: 'column', width: '100%', height: '100%', minHeight: 0 };
-const textActionBarStyle: React.CSSProperties = { display: 'flex', gap: '8px', alignItems: 'center', justifyContent: 'center', padding: '12px' };
+const textActionBarStyle: React.CSSProperties = { display: 'flex', gap: '8px', alignItems: 'center', padding: '12px 0', width: '100%' };
 
 /* Speaker button — same design as mic button in voice mode */
 const speakerBtnStyle: React.CSSProperties = {
