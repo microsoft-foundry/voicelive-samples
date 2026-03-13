@@ -1,12 +1,13 @@
 {
   "mcpServers": {
     "azure-mcp-server": {
+      "type": "stdio",
       "command": "npx",
       "args": ["-y", "@azure/mcp@latest", "server", "start"]
     },
     "Foundry-Storybook-MCP": {
-      "url": "https://brave-field-0ab65a210.6.azurestaticapps.net/api/mcp",
-      "type": "http"
+      "type": "http",
+      "url": "https://brave-field-0ab65a210.6.azurestaticapps.net/api/mcp"
     }
   }
 }
