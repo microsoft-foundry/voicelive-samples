@@ -65,7 +65,7 @@ html, body, #root {
 }
 
 body {
-  font-family: 'Segoe UI Variable', 'Segoe UI', system-ui, -apple-system, sans-serif;
+  font-family: Aptos, sans-serif;
   background: var(--bg-1);
   color: var(--fg-1);
   -webkit-font-smoothing: antialiased;

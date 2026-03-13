@@ -2,28 +2,37 @@ import { createLightTheme, createDarkTheme } from '@fluentui/react-components';
 import type { BrandVariants, Theme } from '@fluentui/react-components';
 
 /**
- * Custom purple brand ramp matching the Foundry Portal's nextGenForegroundBrand.
- * Base color: #7B5EA7 (Foundry's colorBrandBackground equivalent)
- *
- * Generated to produce a purple palette instead of Fluent's default blue.
+ * Foundry Portal brand ramp — exact values from
+ * ADO msdata/Vienna/azure-ai-foundry packages/core/contexts/theme/src/themes.ts
+ * Base color: #8251EE (Foundry's nextGenForegroundBrand)
  */
 const purpleBrand: BrandVariants = {
-  10: '#050208',
-  20: '#1B0E2E',
-  30: '#2D1650',
-  40: '#3D1D6D',
-  50: '#4C2585',
-  60: '#5C2E9E',
-  70: '#6B3AB3',
-  80: '#7B5EA7',  // Base — matches Foundry
-  90: '#8E6FBB',
-  100: '#9F82C8',
-  110: '#B095D4',
-  120: '#C0A8DF',
-  130: '#CFBCE9',
-  140: '#DDD0F1',
-  150: '#EBE4F8',
-  160: '#F5F0FC',
+  10: '#030206',
+  20: '#1A1326',
+  30: '#2B1D44',
+  40: '#38255E',
+  50: '#472E79',
+  60: '#553695',
+  70: '#643FB2',
+  80: '#8251EE',  // Base — exact Foundry value
+  90: '#8251EE',  // Same as 80 in Foundry's ramp
+  100: '#9263F1',
+  110: '#A175F3',
+  120: '#AF86F5',
+  130: '#BC98F7',
+  140: '#C9AAF9',
+  150: '#D5BCFB',
+  160: '#E1CEFC',
+};
+
+/**
+ * Font family tokens — matches Foundry Portal's fontFamilyTokens.
+ * Foundry uses Aptos instead of Segoe UI.
+ */
+const fontFamilyOverrides = {
+  fontFamilyBase: 'Aptos, sans-serif',
+  fontFamilyMonospace: '"Aptos Mono", Menlo, Monaco, Consolas, monospace',
+  fontFamilyNumeric: 'Aptos, sans-serif',
 };
 
 /**
@@ -31,6 +40,7 @@ const purpleBrand: BrandVariants = {
  */
 export const voiceLiveLightTheme: Theme = {
   ...createLightTheme(purpleBrand),
+  ...fontFamilyOverrides,
   colorBrandBackground: purpleBrand[70],
   colorBrandBackgroundHover: purpleBrand[60],
   colorBrandBackgroundPressed: purpleBrand[40],
@@ -49,6 +59,7 @@ export const voiceLiveLightTheme: Theme = {
  */
 export const voiceLiveDarkTheme: Theme = {
   ...createDarkTheme(purpleBrand),
+  ...fontFamilyOverrides,
   // Foundry dark background overrides (HSL step system)
   colorNeutralBackground1: 'hsl(0, 0%, 12%)',         // #1f1f1f
   colorNeutralBackground1Hover: 'hsl(0, 0%, 18%)',
