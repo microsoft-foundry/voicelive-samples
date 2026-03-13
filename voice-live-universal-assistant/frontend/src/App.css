@@ -23,7 +23,20 @@
   --warning: #d97706;
 }
 
+/* Dark theme — fallback values match Foundry Portal's dark theme (HSL step system) */
 [data-theme="dark"] {
+  --bg-1: var(--colorNeutralBackground3Selected, #1c1c1c);
+  --bg-2: var(--colorNeutralBackground1, #1f1f1f);
+  --bg-3: var(--colorNeutralBackground2, #1a1a1a);
+  --fg-1: var(--colorNeutralForeground1, #ffffff);
+  --fg-2: var(--colorNeutralForeground2, #d6d6d6);
+  --fg-3: var(--colorNeutralForeground3, #adadad);
+  --voice-primary: var(--colorBrandBackground, #7B5EA7);
+  --border: var(--colorNeutralStroke1, rgba(255,255,255,0.10));
+  --border-subtle: var(--colorNeutralStroke2, rgba(255,255,255,0.06));
+  --surface-overlay: var(--colorNeutralBackground5, rgba(255,255,255,0.05));
+  --control-bar-bg: var(--colorNeutralBackground1, #1f1f1f);
+  --scrollbar-thumb: var(--colorNeutralStroke2, rgba(255,255,255,0.15));
   --voice-glow: rgba(151, 117, 250, 0.4);
   --voice-bg-subtle: rgba(151, 117, 250, 0.15);
   --backdrop: rgba(0, 0, 0, 0.5);
