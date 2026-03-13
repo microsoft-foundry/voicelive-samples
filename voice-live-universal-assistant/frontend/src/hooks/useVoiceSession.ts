@@ -101,13 +101,13 @@ export function useVoiceSession() {
       .catch((err) => console.warn('Failed to fetch /languages:', err));
   }, []);
 
-  const { playAudio: rawPlayAudio, stopPlayback, cleanupPlayback, initPlayback, isPlaybackMuted, togglePlaybackMute, resetPlaybackMute } = useAudioPlayback();
+  const { playAudio: rawPlayAudio, stopPlayback, cleanupPlayback, initPlayback, isPlaybackMuted, isMutedRef, togglePlaybackMute, resetPlaybackMute } = useAudioPlayback();
 
-  // In text mode, skip audio when muted. In voice mode, always play.
+  // In text mode, skip audio when muted. Uses ref to avoid stale closure in WebSocket handler.
   const playAudio = useCallback(async (data: string) => {
-    if (inputModeRef.current === 'text' && isPlaybackMuted) return;
+    if (inputModeRef.current === 'text' && isMutedRef.current) return;
     return rawPlayAudio(data);
-  }, [rawPlayAudio, isPlaybackMuted]);
+  }, [rawPlayAudio, isMutedRef]);
 
   const sendWsMessage = useCallback((type: string, data?: any) => {
     if (wsRef.current?.readyState === WebSocket.OPEN) {

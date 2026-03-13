@@ -85,5 +85,5 @@ export function useAudioPlayback() {
     audioContextRef.current = null;
   }, [stopPlayback]);
 
-  return { playAudio, stopPlayback, isPlaying, initPlayback, cleanupPlayback, isPlaybackMuted, togglePlaybackMute, resetPlaybackMute };
+  return { playAudio, stopPlayback, isPlaying, initPlayback, cleanupPlayback, isPlaybackMuted, isMutedRef, togglePlaybackMute, resetPlaybackMute };
 }
