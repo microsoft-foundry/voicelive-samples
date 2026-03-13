@@ -391,7 +391,7 @@ public class VoiceLiveHandler
             case SessionUpdateSessionCreated created:
                 var createdSession = created.Session;
                 _serviceSessionId = createdSession?.Id ?? "";
-                _logger.LogInformation("[{ClientId}] SESSION_CREATED — session_id: {SessionId}", _config.ClientId, _serviceSessionId);
+                _logger.LogInformation("[{ClientId}] SESSION_CREATED — session_id: {SessionId}", _clientId, _serviceSessionId);
                 break;
 
             // -- Session ready ------------------------------------------------
@@ -405,7 +405,7 @@ public class VoiceLiveHandler
                 await _sendMessage(new Dictionary<string, object>
                 {
                     ["type"] = "session_started",
-                    ["session_id"] = !string.IsNullOrEmpty(_serviceSessionId) ? _serviceSessionId : _config.ClientId,
+                    ["session_id"] = !string.IsNullOrEmpty(_serviceSessionId) ? _serviceSessionId : _clientId,
                     ["config"] = new Dictionary<string, object>
                     {
                         ["mode"] = _config.Mode,
