@@ -3,11 +3,25 @@
     "azure-mcp-server": {
       "type": "stdio",
       "command": "npx",
-      "args": ["-y", "@azure/mcp@latest", "server", "start"]
+      "args": ["-y", "@azure/mcp@latest", "server", "start"],
+      "tools": [
+        "get_azure_bestpractices_get",
+        "get_azure_bestpractices_ai_app",
+        "microsoft_docs_search",
+        "microsoft_code_sample_search",
+        "microsoft_docs_fetch"
+      ]
     },
     "Foundry-Storybook-MCP": {
       "type": "http",
-      "url": "https://brave-field-0ab65a210.6.azurestaticapps.net/api/mcp"
+      "url": "https://brave-field-0ab65a210.6.azurestaticapps.net/api/mcp",
+      "tools": [
+        "search_components",
+        "get-documentation",
+        "get-component-props",
+        "get-component-examples",
+        "list-all-documentation"
+      ]
     }
   }
 }
