@@ -22,7 +22,7 @@
     <properties>
         <java.version>17</java.version>
         <azure-ai-voicelive.version>1.0.0-beta.5</azure-ai-voicelive.version>
-        <azure-identity.version>1.15.4</azure-identity.version>
+        <azure-identity.version>1.18.2</azure-identity.version>
     </properties>
 
     <dependencies>
