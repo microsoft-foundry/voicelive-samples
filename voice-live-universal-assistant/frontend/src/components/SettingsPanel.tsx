@@ -170,6 +170,8 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
               appearance={settings.mode === 'agent' ? 'primary' : 'subtle'}
               style={{ flex: 1 }}
               onClick={() => onUpdate({ mode: 'agent' })}
+              disabled={!settings.agentName && !settings.project && settings.mode !== 'agent'}
+              title={!settings.agentName && !settings.project ? 'No agent configured on server' : undefined}
             >
               Agent
             </Button>

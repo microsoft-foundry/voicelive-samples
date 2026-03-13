@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { FluentProvider, Button, Text } from '@fluentui/react-components';
+import { Speaker224Regular, SpeakerOff24Regular, Dismiss24Regular } from '@fluentui/react-icons';
 import { voiceLiveLightTheme, voiceLiveDarkTheme } from './theme';
 import { useVoiceSession } from './hooks/useVoiceSession';
 import { useTheme } from './hooks/useTheme';
@@ -36,6 +37,8 @@ const App: React.FC = () => {
     sendTextMessage,
     configLoaded,
     setInputModeRef,
+    isPlaybackMuted,
+    togglePlaybackMute,
   } = useVoiceSession();
 
   const { theme, resolvedTheme, setTheme } = useTheme();
@@ -135,18 +138,29 @@ const App: React.FC = () => {
               <SessionEndedView sessionId={sessionId} transcripts={transcripts} onNewThread={handleNewThread} />
             )}
 
-            {isActive && state !== 'connecting' && inputMode === 'text' && <ChatMessages transcripts={transcripts} />}
+            {isActive && state !== 'connecting' && inputMode === 'text' && (
+              <div style={textChatContainerStyle}>
+                <ChatMessages transcripts={transcripts} />
+                <div style={textActionBarStyle}>
+                  <ChatInput onSend={sendTextMessage} />
+                  <button
+                    onClick={togglePlaybackMute}
+                    aria-label={isPlaybackMuted ? 'Enable audio playback' : 'Disable audio playback'}
+                    title={isPlaybackMuted ? 'Audio off' : 'Audio on'}
+                    style={speakerBtnStyle}
+                  >
+                    {isPlaybackMuted ? <SpeakerOff24Regular /> : <Speaker224Regular />}
+                  </button>
+                  <button onClick={stopSession} aria-label="End session" title="End session" style={dismissBtnStyle}>
+                    <Dismiss24Regular />
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
 
           <BuiltWithBadge className="builtWithBadge" />
         </div>
-
-        {isActive && state !== 'connecting' && inputMode === 'text' && (
-          <div style={textModeBottomStyle}>
-            <ChatInput onSend={sendTextMessage} />
-            <Button appearance="outline" shape="circular" onClick={stopSession} aria-label="End session" size="small">✕ End</Button>
-          </div>
-        )}
 
         <SettingsPanel isOpen={settingsOpen} settings={settings} onUpdate={updateSettings} onClose={() => setSettingsOpen(false)} azureSpeechLocales={azureSpeechLocales} theme={theme} onThemeChange={setTheme} />
       </div>
@@ -160,6 +174,30 @@ const idlePanelStyle: React.CSSProperties = { display: 'flex', flexDirection: 'c
 const idleTitleStyle: React.CSSProperties = { fontSize: '20px', fontWeight: 600, color: 'var(--fg-1)', marginTop: '8px' };
 const idleSubtitleStyle: React.CSSProperties = { fontSize: '14px', color: 'var(--fg-2)', maxWidth: '250px', textAlign: 'center' };
 const startButtonStyle: React.CSSProperties = { minWidth: '120px', maxWidth: '200px', marginTop: '24px' };
-const textModeBottomStyle: React.CSSProperties = { display: 'flex', alignItems: 'center', gap: '8px', borderTop: '1px solid var(--border-subtle)', background: 'var(--bg-2)', padding: '8px' };
+
+/* Text mode — inside grid, same position as voice mode */
+const textChatContainerStyle: React.CSSProperties = { display: 'flex', flexDirection: 'column', width: '100%', height: '100%', minHeight: 0 };
+const textActionBarStyle: React.CSSProperties = { display: 'flex', gap: '8px', alignItems: 'center', justifyContent: 'center', padding: '12px' };
+
+/* Speaker button — same design as mic button in voice mode */
+const speakerBtnStyle: React.CSSProperties = {
+  width: '40px', height: '40px', padding: '8px',
+  border: '1px solid var(--colorBrandBackground, #7B5EA7)',
+  borderRadius: 'var(--borderRadiusCircular, 9999px)',
+  color: 'var(--colorBrandForeground1, #7B5EA7)',
+  background: 'var(--colorNeutralBackground1, #fff)',
+  cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
+  fontFamily: 'inherit', transition: 'all 120ms ease',
+};
+
+/* Dismiss button — same as voice mode end button */
+const dismissBtnStyle: React.CSSProperties = {
+  width: '40px', height: '40px', padding: '8px',
+  border: 'none', borderRadius: 'var(--borderRadiusCircular, 9999px)',
+  color: 'var(--colorNeutralForeground2, #424242)',
+  background: 'transparent', cursor: 'pointer',
+  display: 'flex', alignItems: 'center', justifyContent: 'center',
+  fontFamily: 'inherit', transition: 'color 120ms ease',
+};
 
 export default App;

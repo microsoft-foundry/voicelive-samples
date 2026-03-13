@@ -101,7 +101,7 @@ export function useVoiceSession() {
       .catch((err) => console.warn('Failed to fetch /languages:', err));
   }, []);
 
-  const { playAudio, stopPlayback, cleanupPlayback, initPlayback } = useAudioPlayback();
+  const { playAudio, stopPlayback, cleanupPlayback, initPlayback, isPlaybackMuted, togglePlaybackMute } = useAudioPlayback();
 
   const sendWsMessage = useCallback((type: string, data?: any) => {
     if (wsRef.current?.readyState === WebSocket.OPEN) {
@@ -360,5 +360,7 @@ export function useVoiceSession() {
     sendTextMessage,
     configLoaded,
     setInputModeRef: useCallback((mode: 'voice' | 'text') => { inputModeRef.current = mode; }, []),
+    isPlaybackMuted,
+    togglePlaybackMute,
   };
 }
