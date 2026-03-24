@@ -114,6 +114,29 @@ export class VoiceHandler {
     }
   }
 
+  /**
+   * Send a text message via Voice Live (conversation.item.create + response.create).
+   * @param {string} text
+   */
+  async sendText(text) {
+    if (!this.session || !text.trim()) return;
+    try {
+      await this.session.sendEvent({
+        type: KnownClientEventType.ConversationItemCreate,
+        item: {
+          type: "message",
+          role: "user",
+          content: [{ type: "input_text", text: text.trim() }],
+        },
+      });
+      await this.session.sendEvent({
+        type: KnownClientEventType.ResponseCreate,
+      });
+    } catch (err) {
+      console.error(`[${this.clientId}] Error sending text:`, err);
+    }
+  }
+
   async interrupt() {
     if (!this.session) return;
     try {

@@ -44,6 +44,7 @@ import com.azure.ai.voicelive.models.SessionUpdateResponseAudioDelta;
 import com.azure.ai.voicelive.models.SessionUpdateResponseAudioTranscriptDelta;
 import com.azure.ai.voicelive.models.SystemMessageItem;
 import com.azure.ai.voicelive.models.TurnDetection;
+import com.azure.ai.voicelive.models.UserMessageItem;
 import com.azure.ai.voicelive.models.VoiceLiveSessionOptions;
 import com.azure.core.util.BinaryData;
 
@@ -172,6 +173,22 @@ public class VoiceLiveHandler {
                 session.sendInputAudio(audioBytes).block();
             } catch (Exception e) {
                 logger.error("[{}] Error forwarding audio: {}", clientId, e.getMessage());
+            }
+        }
+    }
+
+    /**
+     * Send a text message via Voice Live (conversation.item.create + response.create).
+     */
+    public void sendText(String text) {
+        if (session != null && running && text != null && !text.trim().isEmpty()) {
+            try {
+                UserMessageItem item = new UserMessageItem(
+                        List.of(new InputTextContentPart(text.trim())));
+                session.addItem(item).block();
+                session.startResponse().block();
+            } catch (Exception e) {
+                logger.error("[{}] Error sending text: {}", clientId, e.getMessage());
             }
         }
     }

@@ -78,6 +78,36 @@ public class VoiceLiveHandler
         }
     }
 
+    /// <summary>Send a text message via Voice Live (conversation.item.create + response.create).</summary>
+    public async Task SendTextAsync(string text)
+    {
+        var session = _session;
+        if (session != null && _running && !string.IsNullOrWhiteSpace(text))
+        {
+            try
+            {
+                await session.SendCommandAsync(BinaryData.FromObjectAsJson(new
+                {
+                    type = "conversation.item.create",
+                    item = new
+                    {
+                        type = "message",
+                        role = "user",
+                        content = new[] { new { type = "input_text", text = text.Trim() } },
+                    },
+                }));
+                await session.SendCommandAsync(BinaryData.FromObjectAsJson(new
+                {
+                    type = "response.create",
+                }));
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError("[{ClientId}] Error sending text: {Error}", _clientId, ex.Message);
+            }
+        }
+    }
+
     /// <summary>Cancel the current response (user barge-in).</summary>
     public async Task InterruptAsync()
     {

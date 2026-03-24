@@ -275,6 +275,13 @@ async Task HandleWebSocketAsync(WebSocket ws, string clientId, Func<Dictionary<s
                         await interruptHandler.InterruptAsync();
                     }
                     break;
+                case "send_text":
+                    if (handlers.TryGetValue(clientId, out var textHandler))
+                    {
+                        var messageText = node?["text"]?.GetValue<string>();
+                        if (messageText != null) await textHandler.SendTextAsync(messageText);
+                    }
+                    break;
                 default:
                     logger.LogWarning("Unknown message type from {ClientId}: {Type}", clientId, msgType);
                     break;

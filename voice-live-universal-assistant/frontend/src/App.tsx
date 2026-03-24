@@ -57,7 +57,7 @@ const App: React.FC = () => {
     if (greetingDisabled) overrides.proactiveGreeting = false;
     if (agent && project) overrides.mode = 'agent';
     if (Object.keys(overrides).length > 0) updateSettings(overrides);
-  }, [configLoaded]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [configLoaded, agent, project, greetingDisabled, updateSettings]);
 
   // Apply URL theme override
   useEffect(() => {

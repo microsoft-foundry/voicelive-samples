@@ -51,6 +51,7 @@ public class VoiceLiveWebSocketHandler extends TextWebSocketHandler {
                 case "stop_session" -> handleStopSession(clientId, session);
                 case "audio_chunk" -> handleAudioChunk(clientId, msg);
                 case "interrupt" -> handleInterrupt(clientId);
+                case "send_text" -> handleSendText(clientId, msg);
                 default -> logger.warn("Unknown message type from {}: {}", clientId, type);
             }
         } catch (Exception e) {
@@ -144,6 +145,16 @@ public class VoiceLiveWebSocketHandler extends TextWebSocketHandler {
         VoiceLiveHandler handler = handlers.get(clientId);
         if (handler != null) {
             handler.interrupt();
+        }
+    }
+
+    private void handleSendText(String clientId, Map<String, Object> msg) {
+        VoiceLiveHandler handler = handlers.get(clientId);
+        if (handler != null) {
+            String text = (String) msg.get("text");
+            if (text != null) {
+                handler.sendText(text);
+            }
         }
     }
 
