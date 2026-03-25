@@ -180,6 +180,8 @@ async def get_languages():
 
 @app.websocket("/ws/{client_id}")
 async def websocket_endpoint(websocket: WebSocket, client_id: str):
+    # Sanitize user-controlled client_id to prevent log injection
+    client_id = client_id.replace("\n", "").replace("\r", "").replace("\t", "")
     await websocket.accept()
     logger.info(f"Client {client_id} connected")
 

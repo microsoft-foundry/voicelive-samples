@@ -428,7 +428,8 @@ class VoiceLiveHandler:
         if t == ServerEventType.SESSION_CREATED:
             session_obj = getattr(event, "session", None)
             self._service_session_id = getattr(session_obj, "id", "") if session_obj else ""
-            logger.info(f"[{self.client_id}] SESSION_CREATED — session_id: {self._service_session_id}")
+            safe_sid = self._service_session_id.replace("\n", "").replace("\r", "")
+            logger.info(f"[{self.client_id}] SESSION_CREATED — session_id: {safe_sid}")
 
         # -- Session ready ------------------------------------------------
         elif t == ServerEventType.SESSION_UPDATED:
