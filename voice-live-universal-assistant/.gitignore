@@ -10,3 +10,5 @@ logs/
 *.tsbuildinfo
 package-lock.json
 tests/screenshot_*.png
+
+tests/results/
