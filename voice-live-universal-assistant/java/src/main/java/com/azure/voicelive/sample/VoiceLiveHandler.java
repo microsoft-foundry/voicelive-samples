@@ -42,6 +42,8 @@ import com.azure.ai.voicelive.models.StaticInterimResponseConfig;
 import com.azure.ai.voicelive.models.SessionUpdateErrorDetails;
 import com.azure.ai.voicelive.models.SessionUpdateResponseAudioDelta;
 import com.azure.ai.voicelive.models.SessionUpdateResponseAudioTranscriptDelta;
+import com.azure.ai.voicelive.models.SessionUpdateSessionCreated;
+import com.azure.ai.voicelive.models.SessionUpdateSessionUpdated;
 import com.azure.ai.voicelive.models.SystemMessageItem;
 import com.azure.ai.voicelive.models.TurnDetection;
 import com.azure.ai.voicelive.models.UserMessageItem;
@@ -392,13 +394,15 @@ public class VoiceLiveHandler {
 
             if (ServerEventType.SESSION_CREATED.equals(type)) {
                 // Capture service session ID
-                var session = event.getSession();
-                serviceSessionId = session != null && session.getId() != null ? session.getId() : "";
+                if (event instanceof SessionUpdateSessionCreated created) {
+                    var session = created.getSession();
+                    serviceSessionId = session != null && session.getId() != null ? session.getId() : "";
+                }
                 logger.info("[{}] SESSION_CREATED — session_id: {}", clientId, serviceSessionId);
             } else if (ServerEventType.SESSION_UPDATED.equals(type)) {
                 // Pick up session ID if not captured from SESSION_CREATED
-                if (serviceSessionId.isEmpty()) {
-                    var session = event.getSession();
+                if (serviceSessionId.isEmpty() && event instanceof SessionUpdateSessionUpdated updated) {
+                    var session = updated.getSession();
                     serviceSessionId = session != null && session.getId() != null ? session.getId() : "";
                 }
                 handleSessionUpdated();
