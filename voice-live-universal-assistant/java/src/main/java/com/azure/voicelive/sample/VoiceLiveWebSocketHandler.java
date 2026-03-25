@@ -236,8 +236,8 @@ public class VoiceLiveWebSocketHandler extends TextWebSocketHandler {
         // Path is /ws/{clientId}
         int lastSlash = path.lastIndexOf('/');
         String raw = lastSlash >= 0 ? path.substring(lastSlash + 1) : "unknown";
-        // Sanitize — strip control characters to prevent log injection
-        return raw.replaceAll("[\\r\\n\\t]", "_");
+        // Allowlist sanitization — only permit safe characters to prevent log injection
+        return raw.replaceAll("[^a-zA-Z0-9\\-_.]", "");
     }
 
     private void cleanupClient(String clientId) {
