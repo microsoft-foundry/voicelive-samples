@@ -304,7 +304,8 @@ public class VoiceLiveHandler {
                 StaticInterimResponseConfig staticConfig = new StaticInterimResponseConfig();
                 staticConfig.setTriggers(triggers);
                 if (config.getInterimStaticTexts() != null && !config.getInterimStaticTexts().isBlank()) {
-                    staticConfig.setTexts(java.util.List.of(config.getInterimStaticTexts().split("\\|")));
+                    staticConfig.setTexts(java.util.Arrays.stream(config.getInterimStaticTexts().split("\\n"))
+                            .map(String::trim).filter(s -> !s.isEmpty()).toList());
                 }
                 options.setInterimResponse(BinaryData.fromObject(staticConfig));
             } else {

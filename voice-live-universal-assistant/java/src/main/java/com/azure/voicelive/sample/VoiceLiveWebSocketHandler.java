@@ -3,6 +3,8 @@ package com.azure.voicelive.sample;
 import java.io.IOException;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -26,6 +28,12 @@ public class VoiceLiveWebSocketHandler extends TextWebSocketHandler {
     private final ConcurrentHashMap<String, VoiceLiveHandler> handlers = new ConcurrentHashMap<>();
     private final Object credential;
     private final String endpoint;
+    // SDK calls (.block()) must not run on the WebSocket I/O thread
+    private final ExecutorService sdkExecutor = Executors.newCachedThreadPool(r -> {
+        Thread t = new Thread(r, "voicelive-sdk");
+        t.setDaemon(true);
+        return t;
+    });
 
     public VoiceLiveWebSocketHandler(Object credential, String endpoint) {
         this.credential = credential;
@@ -92,6 +100,7 @@ public class VoiceLiveWebSocketHandler extends TextWebSocketHandler {
             cleanupClient(clientId);
         }
         handlers.clear();
+        sdkExecutor.shutdownNow();
     }
 
     // ------------------------------------------------------------------
@@ -154,7 +163,7 @@ public class VoiceLiveWebSocketHandler extends TextWebSocketHandler {
         if (handler != null) {
             String data = (String) msg.get("data");
             if (data != null) {
-                handler.sendAudio(data);
+                sdkExecutor.execute(() -> handler.sendAudio(data));
             }
         }
     }
@@ -162,7 +171,7 @@ public class VoiceLiveWebSocketHandler extends TextWebSocketHandler {
     private void handleInterrupt(String clientId) {
         VoiceLiveHandler handler = handlers.get(clientId);
         if (handler != null) {
-            handler.interrupt();
+            sdkExecutor.execute(handler::interrupt);
         }
     }
 
@@ -171,7 +180,7 @@ public class VoiceLiveWebSocketHandler extends TextWebSocketHandler {
         if (handler != null) {
             String text = (String) msg.get("text");
             if (text != null) {
-                handler.sendText(text);
+                sdkExecutor.execute(() -> handler.sendText(text));
             }
         }
     }
