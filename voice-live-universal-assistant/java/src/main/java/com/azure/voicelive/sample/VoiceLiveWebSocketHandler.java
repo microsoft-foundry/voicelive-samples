@@ -35,6 +35,9 @@ public class VoiceLiveWebSocketHandler extends TextWebSocketHandler {
     @Override
     public void afterConnectionEstablished(WebSocketSession session) {
         String clientId = extractClientId(session);
+        // Allow large messages — audio chunks are base64-encoded and can be 100KB+
+        session.setTextMessageSizeLimit(512 * 1024);
+        session.setBinaryMessageSizeLimit(512 * 1024);
         logger.info("Client {} connected", clientId);
     }
 
@@ -72,6 +75,13 @@ public class VoiceLiveWebSocketHandler extends TextWebSocketHandler {
         String clientId = extractClientId(session);
         logger.error("WebSocket transport error for {}: {}", clientId, exception.getMessage());
         cleanupClient(clientId);
+        try {
+            if (session.isOpen()) {
+                session.close(CloseStatus.SERVER_ERROR);
+            }
+        } catch (IOException e) {
+            logger.debug("Error closing WebSocket after transport error for {}: {}", clientId, e.getMessage());
+        }
     }
 
     /**
@@ -128,6 +138,14 @@ public class VoiceLiveWebSocketHandler extends TextWebSocketHandler {
             handler.stop();
         }
         sendJson(wsSession, Map.of("type", "session_stopped"));
+        // Close the WebSocket with a proper close frame so clients get a clean shutdown
+        try {
+            if (wsSession.isOpen()) {
+                wsSession.close(CloseStatus.NORMAL);
+            }
+        } catch (IOException e) {
+            logger.debug("Error closing WebSocket for {}: {}", clientId, e.getMessage());
+        }
         logger.info("Session stopped for {}", clientId);
     }
 
@@ -219,14 +237,15 @@ public class VoiceLiveWebSocketHandler extends TextWebSocketHandler {
     }
 
     private void sendJson(WebSocketSession session, Map<String, Object> msg) {
-        if (session.isOpen()) {
-            try {
-                synchronized (session) {
+        try {
+            synchronized (session) {
+                if (session.isOpen()) {
                     session.sendMessage(new TextMessage(mapper.writeValueAsString(msg)));
                 }
-            } catch (IOException e) {
-                logger.error("Failed to send message: {}", e.getMessage());
             }
+        } catch (IOException e) {
+            // Expected during session teardown — don't log at error level
+            logger.debug("Failed to send message: {}", e.getMessage());
         }
     }
 
