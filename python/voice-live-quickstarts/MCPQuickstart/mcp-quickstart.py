@@ -282,6 +282,7 @@ class MCPVoiceAssistant:
         self._approval_call_count: dict[str, int] = {}  # Per-server call count this turn
         self._mcp_item_to_server: dict = {}  # Map MCP item IDs to server_label/function_name
         self._approval_servers: set = set()  # Server labels that require approval
+        self._mcp_stall_task: Optional[asyncio.Task] = None  # Timer for MCP stall detection
 
     async def start(self):
         """Start the voice assistant session with MCP support."""
@@ -534,10 +535,12 @@ class MCPVoiceAssistant:
             logger.info("MCP call in progress for %s", event.item_id)
             print("⏳ MCP tool call in progress...")
             self._mcp_call_in_progress += 1
+            self._start_mcp_stall_timer(conn)
 
         elif event.type == ServerEventType.RESPONSE_MCP_CALL_COMPLETED:
             item_id = event.item_id
             self._mcp_call_in_progress = max(0, self._mcp_call_in_progress - 1)
+            self._cancel_mcp_stall_timer()
             if item_id in self._handled_mcp_completions:
                 logger.debug("Ignoring duplicate MCP completion for %s", item_id)
             else:
@@ -549,7 +552,8 @@ class MCPVoiceAssistant:
             logger.error("MCP call failed for %s", event.item_id)
             print("❌ MCP tool call failed")
             self._mcp_call_in_progress = max(0, self._mcp_call_in_progress - 1)
-            # Kick the model to respond — it should inform the user the tool call failed
+            self._cancel_mcp_stall_timer()
+            # Kick the model to inform the user the tool call failed
             try:
                 await conn.response.create()
             except Exception as e:
@@ -700,6 +704,38 @@ class MCPVoiceAssistant:
         else:
             self._approval_prompt_needed = True
     # </handle_approval>
+
+    # <mcp_stall_detection>
+    def _start_mcp_stall_timer(self, connection):
+        """Start a timer that verbally updates the user if an MCP call takes too long."""
+        self._cancel_mcp_stall_timer()
+
+        async def _stall_check():
+            await asyncio.sleep(15)
+            if self._mcp_call_in_progress > 0:
+                logger.info("MCP call taking >15s — notifying user")
+                try:
+                    await connection.conversation.item.create(
+                        item=MessageItem(
+                            role="system",
+                            content=[InputTextContentPart(
+                                text="The tool call is taking longer than expected. "
+                                     "Briefly let the user know you're still waiting for results."
+                            )],
+                        )
+                    )
+                    await connection.response.create()
+                except Exception as e:
+                    logger.debug("Stall notification failed: %s", e)
+
+        self._mcp_stall_task = asyncio.create_task(_stall_check())
+
+    def _cancel_mcp_stall_timer(self):
+        """Cancel the MCP stall timer if running."""
+        if self._mcp_stall_task and not self._mcp_stall_task.done():
+            self._mcp_stall_task.cancel()
+        self._mcp_stall_task = None
+    # </mcp_stall_detection>
 
     async def _handle_mcp_call_completed(self, mcp_call_completed_event, connection):
         """Handle MCP call completed events."""
