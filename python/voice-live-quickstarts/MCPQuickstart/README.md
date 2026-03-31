@@ -115,7 +115,7 @@ MCP flows generate rapid event sequences where `response.create` calls can colli
 | Say this | MCP Server | Approval | What happens |
 |---|---|---|---|
 | *"Can you summarize the GitHub repo azure-sdk-for-python?"* | DeepWiki | Auto (`never`) | Assistant announces lookup, calls tools, speaks results |
-| *"Search the Azure documentation for Voice Live API"* | Azure Docs | Voice prompt (`always`) | Assistant asks *"Should I go ahead?"*, waits for your *yes* or *no* |
+| *"Search the Azure documentation for Voice Live API"* | Azure Docs | Voice prompt (`always`) | Assistant asks *"Do you approve?"*, waits for your *yes* or *no* |
 
 ## How It Works
 
