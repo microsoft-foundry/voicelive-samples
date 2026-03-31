@@ -3,6 +3,7 @@
 This folder contains Python quickstart samples demonstrating different ways to use Azure AI Speech Service VoiceLive:
 
 - [Agents New Quickstart](./AgentsNewQuickstart/) - New Voice Live + Foundry Agent v2 flow with agent creation helper scripts
+- [MCP Quickstart](./MCPQuickstart/) - MCP server integration with remote tool calling and approval flow
 - [Model Quickstart](#model-quickstart) - Direct VoiceLive model integration with custom instructions
 - [Bring-Your-Own-Model Quickstart (BYOM)](#byom-quickstart) - Demonstrates direct integration with VoiceLive using bring-your-own-models from Foundry.
 - [Agent Quickstart](#agent-quickstart) - Integration with Azure AI Foundry agents

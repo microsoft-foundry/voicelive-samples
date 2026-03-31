@@ -17,6 +17,16 @@ A Node.js quickstart demonstrating the Voice Live + Foundry Agent v2 flow, inclu
 - Explicit microphone device selection
 - Barge-in handling and conversation logging
 
+### [MCP Quickstart](./voice-live-quickstarts/MCPQuickstart/)
+
+A Node.js quickstart demonstrating MCP (Model Context Protocol) server integration with Voice Live, enabling the assistant to use remote tools (DeepWiki, Azure Docs) during voice conversations.
+
+**Key Features:**
+- MCP server definitions with configurable approval policies
+- MCP tool discovery, execution, and failure event handling
+- Interactive console-based approval flow for sensitive tools
+- Barge-in handling and conversation logging
+
 ### [Model Quickstart](./voice-live-quickstarts/ModelQuickstart/)
 
 A Node.js quickstart demonstrating direct Voice Live model integration without Foundry agent orchestration.
@@ -113,6 +123,7 @@ All samples require:
 | Sample | Requirements |
 |--------|--------------|
 | Agents New Quickstart | [Node.js 18+](https://nodejs.org/) with npm |
+| MCP Quickstart | [Node.js 18+](https://nodejs.org/) with npm |
 | Model Quickstart | [Node.js 18+](https://nodejs.org/) with npm |
 | Basic Web Voice Assistant | [Node.js 18+](https://nodejs.org/) with npm |
 | Voice Live Avatar | [Docker](https://www.docker.com/get-started) |

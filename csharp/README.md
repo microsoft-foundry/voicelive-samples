@@ -33,6 +33,15 @@ Demonstrates direct integration with VoiceLive using bring-your-own-models from 
 - Custom Instructions: Define your own system instructions for the AI
 - Flexible Authentication: Supports both API key and Azure credential authentication
 
+### [MCP Quickstart](./voice-live-quickstarts/MCPQuickstart/)
+Demonstrates MCP (Model Context Protocol) server integration with VoiceLive, enabling the assistant to use remote tools (DeepWiki, Azure Docs) during voice conversations.
+
+**Key Features:**
+- MCP server definitions using `VoiceLiveMcpServerDefinition`
+- MCP tool discovery, execution, and failure event handling
+- Interactive console-based approval flow for sensitive tools
+- Flexible authentication (API key or Azure credentials)
+
 ### [Agents New Quickstart](./voice-live-quickstarts/AgentsNewQuickstart/)
 Demonstrates the new Voice Live + Foundry Agent workflow, including creating an agent with Voice Live metadata and running a v2 voice assistant sample.
 

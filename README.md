@@ -48,6 +48,7 @@ This repository contains samples in multiple programming languages. Choose your 
 Complete C# samples demonstrating:
 - **Agent Quickstart**: Connect to Azure AI Foundry agents with proactive greetings
 - **Agents New Quickstart**: Create and run Voice Live-enabled Foundry Agents (new SDK patterns)
+- **MCP Quickstart**: MCP server integration with remote tool calling and approval flow
 - **Model Quickstart**: Direct VoiceLive model integration
 - **Bring-Your-Own-Model (BYOM) Quickstart**: Use your own models hosted in Foundry with proactive greetings
 - **Customer Service Bot**: Advanced function calling for customer service scenarios and proactive greetings
@@ -57,6 +58,7 @@ Complete C# samples demonstrating:
 Python samples showcasing:
 - **Agent Quickstart**: Azure AI Foundry agent integration with proactive greetings
 - **Agents New Quickstart**: Voice Live + Foundry Agent v2 samples and agent-creation utility
+- **MCP Quickstart**: MCP server integration with remote tool calling and approval flow
 - **Model Quickstart**: Direct model access with flexible authentication
 - **Bring-Your-Own-Model (BYOM) Quickstart**: Use your own models hosted in Foundry with proactive greetings
 - **Function Calling**: Advanced tool integration with custom functions and proactive greetings
@@ -67,6 +69,7 @@ Python samples showcasing:
 ### [JavaScript Samples](./javascript/)
 JavaScript/TypeScript samples showcasing:
 - **Agents New Quickstart**: Node.js Voice Live + Foundry Agent v2 sample and agent-creation utility
+- **MCP Quickstart**: MCP server integration with remote tool calling and approval flow
 - **Model Quickstart**: Direct Voice Live model integration with proactive greetings
 - **Basic Web Voice Assistant**: Browser-based voice assistant with real-time streaming and barge-in support
 - **Voice Live Avatar**: Avatar-enabled voice conversations with Docker deployment
@@ -78,6 +81,7 @@ JavaScript/TypeScript samples showcasing:
 ### [Java Samples](./java/)
 Java samples  showcasing:
 - **Agents New Quickstart**: Voice Live + Foundry Agent v2 sample and agent-creation utility
+- **MCP Quickstart**: MCP server integration with remote tool calling and approval flow
 - **Model Quickstart**: Direct model access with flexible authentication
 - Built with Java 11+ and Maven
 

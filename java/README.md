@@ -17,6 +17,17 @@ Demonstrates the new Voice Live + Foundry Agent flow, including creating an agen
 - Proactive greeting and barge-in handling
 - Conversation logging
 
+### [MCP Quickstart](./voice-live-quickstarts/MCPQuickstart/)
+
+Demonstrates MCP (Model Context Protocol) server integration with VoiceLive, enabling the assistant to use remote tools (DeepWiki, Azure Docs) during voice conversations.
+
+**Key Features:**
+
+- MCP server definitions using `MCPServer`
+- MCP tool discovery, execution, and failure event handling
+- Interactive console-based approval flow for sensitive tools
+- Flexible authentication (API key or Azure credentials)
+
 ### [Model Quickstart](./voice-live-quickstarts/ModelQuickstart/)
 
 Demonstrates direct integration with VoiceLive models for voice conversations without agent overhead.

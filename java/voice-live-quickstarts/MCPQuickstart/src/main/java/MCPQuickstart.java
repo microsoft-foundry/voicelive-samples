@@ -387,7 +387,8 @@ public final class MCPQuickstart {
 
     // <handle_approval>
     /**
-     * Handle MCP approval requests by prompting the user in the console.
+     * Handle MCP approval requests by prompting the user in the console
+     * and sending the approval/denial response back to the server.
      */
     private static void handleMCPConversationItem(SessionUpdate event, Scanner scanner,
                                                     VoiceLiveSessionAsyncClient session) {
@@ -395,9 +396,17 @@ public final class MCPQuickstart {
         String eventJson = BinaryData.fromObject(event).toString();
 
         if (eventJson.contains("mcp_approval_request")) {
+            // Extract approval details from the event JSON for display
+            String approvalId = extractJsonField(eventJson, "id");
+            String serverLabel = extractJsonField(eventJson, "server_label");
+            String toolName = extractJsonField(eventJson, "name");
+            String arguments = extractJsonField(eventJson, "arguments");
+
             System.out.println();
-            System.out.println("🔐 MCP Approval Request received");
-            System.out.println("   (Check the event details in the log)");
+            System.out.println("🔐 MCP Approval Request:");
+            System.out.println("   Server:    " + serverLabel);
+            System.out.println("   Tool:      " + toolName);
+            System.out.println("   Arguments: " + arguments);
 
             // Prompt the user for approval
             boolean approved = false;
@@ -409,8 +418,39 @@ public final class MCPQuickstart {
                 System.out.println("   Invalid input. Please type 'y' or 'n'.");
             }
 
-            System.out.println("   Response: " + (approved ? "Approved" : "Denied"));
+            System.out.println("   Response: " + (approved ? "Approved ✅" : "Denied ❌"));
+
+            // Send the approval or denial response back to the server.
+            // MCP approval responses use raw JSON via send(BinaryData) because
+            // the typed SDK classes do not yet cover mcp_approval_response.
+            String approvalJson = String.format(
+                "{\"type\":\"conversation.item.create\",\"item\":"
+                + "{\"type\":\"mcp_approval_response\","
+                + "\"approval_request_id\":\"%s\","
+                + "\"approve\":%s}}",
+                approvalId, approved);
+
+            session.send(BinaryData.fromString(approvalJson))
+                .then(session.send(BinaryData.fromString("{\"type\":\"response.create\"}")))
+                .subscribeOn(Schedulers.boundedElastic())
+                .subscribe(
+                    v -> {},
+                    error -> System.err.println("❌ Failed to send approval response: " + error.getMessage())
+                );
         }
+    }
+
+    /**
+     * Extract a simple string field value from a JSON string.
+     */
+    private static String extractJsonField(String json, String fieldName) {
+        String pattern = "\"" + fieldName + "\":\"";
+        int start = json.indexOf(pattern);
+        if (start < 0) return "unknown";
+        start += pattern.length();
+        int end = json.indexOf("\"", start);
+        if (end < 0) return "unknown";
+        return json.substring(start, end);
     }
     // </handle_approval>
 
