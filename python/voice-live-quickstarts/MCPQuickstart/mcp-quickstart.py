@@ -433,10 +433,8 @@ class MCPVoiceAssistant:
             logger.info("User started speaking - stopping playback")
             print("🎤 Listening...")
             ap.skip_pending_audio()
-            # Only reset approval call counter if no approval is pending
-            # (preserves counter for multi-search flows within one topic)
-            if self._pending_approval is None:
-                self._approval_call_count.clear()
+            # Approval call counter is NOT reset on speech — it tracks the
+            # lifecycle of a task (reset on denial or after results are spoken)
 
             if self._active_response and not self._response_api_done:
                 try:
@@ -714,6 +712,10 @@ class MCPVoiceAssistant:
 
         # Clean up item mapping
         self._mcp_item_to_server.pop(mcp_call_completed_event.item_id, None)
+
+        # Reset approval counter if no more approvals are pending (task complete)
+        if self._pending_approval is None and not self._approval_queue:
+            self._approval_call_count.clear()
 
         # Kick the model to incorporate and speak the MCP output.
         # If a response is already active, defer to RESPONSE_DONE.
