@@ -141,6 +141,19 @@ interface MCPServerConfig {
   requireApproval: boolean;
 }
 
+interface PersonalVoiceInfo {
+  id: string;
+  displayName?: string;
+  status: string;
+}
+
+interface CustomAvatarInfo {
+  id: string;
+  description?: string;
+  state: string;
+  previewImageUrl?: string;
+}
+
 interface FoundryAgentToolConfig {
   id: string;
   agentName: string;
@@ -594,25 +607,29 @@ const ChatInterface = () => {
   const [phraseList, setPhraseList] = useState<string[]>([]);
   const [customSpeechModels, setCustomSpeechModels] = useState<Record<string, string>>({});
   const [useNS, setUseNS] = useState(false);
-  const [useEC, setUseEC] = useState(false);
+  const [useEC, setUseEC] = useState(true);
   const [turnDetectionType, setTurnDetectionType] = useState<TurnDetection | null>({
-    type: "server_vad",
+    type: "azure_semantic_vad",
   });
   const [eouDetectionType, setEouDetectionType] = useState<string>("none");
-  const [removeFillerWords, setRemoveFillerWords] = useState(false);
   const [instructions, setInstructions] = useState("");
   const [enableProactive, setEnableProactive] = useState(false);
   const [temperature, setTemperature] = useState(0.9);
   const [voiceTemperature, setVoiceTemperature] = useState(0.9);
   const [voiceSpeed, setVoiceSpeed] = useState(1.0);
-  const [voiceType, setVoiceType] = useState<"standard" | "custom" | "personal">("standard");
+  const [voiceType, setVoiceType] = useState<"standard" | "custom" | "personal" | "azure-realtime-native" | "avatar-voice-sync">("standard");
+  const [avatarVoiceSyncModel, setAvatarVoiceSyncModel] = useState<"DragonLatestNeural" | "DragonHDOmniLatestNeural" | "mai-voice-1">("DragonLatestNeural");
   const [voiceName, setVoiceName] = useState("en-US-AvaMultilingualNeural");
   const [customVoiceName, setCustomVoiceName] = useState("");
   const [personalVoiceName, setPersonalVoiceName] = useState("");
-  const [personalVoiceModel, setPersonalVoiceModel] = useState<"DragonLatestNeural" | "DragonHDOmniLatestNeural">("DragonLatestNeural");
+  const [personalVoiceModel, setPersonalVoiceModel] = useState<"DragonLatestNeural" | "DragonHDOmniLatestNeural" | "mai-voice-1">("DragonLatestNeural");
+  const [personalVoices, setPersonalVoices] = useState<PersonalVoiceInfo[]>([]);
+  const [isFetchingPersonalVoices, setIsFetchingPersonalVoices] = useState(false);
   const [avatarName, setAvatarName] = useState(defaultAvatar);
   const [photoAvatarName, setPhotoAvatarName] = useState(defaultPhotoAvatar);
   const [customAvatarName, setCustomAvatarName] = useState("");
+  const [customAvatars, setCustomAvatars] = useState<CustomAvatarInfo[]>([]);
+  const [isFetchingCustomAvatars, setIsFetchingCustomAvatars] = useState(false);
   const [avatarBackgroundImageUrl, setAvatarBackgroundImageUrl] = useState("");
   const [voiceDeploymentId, setVoiceDeploymentId] = useState("");
   const [tools, setTools] = useState<(ToolDeclaration | SystemToolDeclaration)[]>([]);
@@ -1238,13 +1255,17 @@ const ChatInterface = () => {
             model: eouDetectionType,
           };
         }
-        if (turnDetectionConfig?.type === "azure_semantic_vad") {
-          turnDetectionConfig.removeFillerWords = removeFillerWords;
-        }
-
         // Build voice config for the new SDK
 
-        const voiceConfig: any = voiceType === "custom"
+        const voiceConfig: any = voiceType === "avatar-voice-sync"
+          ? {
+              type: "avatar-voice-sync",
+              model: avatarVoiceSyncModel,
+              temperature: voiceTemperature,
+            }
+          : voiceType === "azure-realtime-native"
+          ? { name: voiceName || "ava", type: "azure-realtime-native" }
+          : voiceType === "custom"
           ? {
               name: customVoiceName,
               endpointId: voiceDeploymentId,
@@ -2144,10 +2165,16 @@ const ChatInterface = () => {
     // matching the WebRTC behaviour for both photo and non-photo avatars.
     if (isPhotoAvatar) {
       videoElement.style.borderRadius = "10%";
+      videoElement.style.width = "auto";
+      videoElement.style.height = isDevelop ? "auto" : "";
+      videoElement.style.objectFit = "cover";
+    } else {
+      // For non-photo avatars, clear inline styles so CSS rules
+      // (.content video / .developer-content video) constrain the size,
+      // matching WebRTC behaviour (no object-fit override).
+      videoElement.style.width = "";
+      videoElement.style.height = "";
     }
-    videoElement.style.width = "auto";
-    videoElement.style.height = isDevelop ? "auto" : "";
-    videoElement.style.objectFit = "cover";
     videoElement.style.display = "block";
 
     // Add canplay event to start playback
@@ -2420,7 +2447,6 @@ const ChatInterface = () => {
       "gpt-5.2-chat",
       "gpt-5.3-chat",
       "gpt-5.4",
-      "phi4-mini",
     ];
     return cascadedModels.includes(model);
   }
@@ -2527,14 +2553,14 @@ const ChatInterface = () => {
                   onChange={(e) => setEndpoint(e.target.value)}
                   disabled={isConnected || configLoaded}
                 />
-                {!configLoaded && (
+                {(!configLoaded || mode === "agent") && (
                   <>
                     <div className="space-y-2">
                       <label className="text-sm font-medium">Authentication</label>
                       <Select
-                        value={mode === "agent" ? "entraToken" : authType}
+                        value={authType}
                         onValueChange={(v) => setAuthType(v as "apiKey" | "entraToken")}
-                        disabled={isConnected || mode === "agent"}
+                        disabled={isConnected}
                       >
                         <SelectTrigger>
                           <SelectValue />
@@ -2545,7 +2571,7 @@ const ChatInterface = () => {
                         </SelectContent>
                       </Select>
                     </div>
-                    {(mode === "agent" || authType === "entraToken") ? (
+                    {authType === "entraToken" ? (
                       <Input
                         placeholder="Entra Token"
                         value={entraToken}
@@ -2562,14 +2588,6 @@ const ChatInterface = () => {
                       />
                     )}
                   </>
-                )}
-                {configLoaded && mode === "agent" && (
-                  <Input
-                    placeholder="Entra Token"
-                    value={entraToken}
-                    onChange={(e) => setEntraToken(e.target.value)}
-                    disabled={isConnected}
-                  />
                 )}
 
                 {/* Show agent fields if agent mode */}
@@ -2620,7 +2638,15 @@ const ChatInterface = () => {
                       <label className="text-sm font-medium">Model</label>
                       <Select
                         value={model}
-                        onValueChange={setModel}
+                        onValueChange={(value) => {
+                          setModel(value);
+                          if (value === "azure-realtime") {
+                            setVoiceType("azure-realtime-native");
+                            setVoiceName("ava");
+                          } else if (voiceType === "azure-realtime-native") {
+                            setVoiceType("standard");
+                          }
+                        }}
                         disabled={isConnected}
                       >
                         <SelectTrigger>
@@ -2629,6 +2655,9 @@ const ChatInterface = () => {
                         <SelectContent>
                           <SelectItem value="gpt-realtime-1.5">
                             GPT Realtime 1.5
+                          </SelectItem>
+                          <SelectItem value="azure-realtime">
+                            Azure Realtime
                           </SelectItem>
                           <SelectItem value="gpt-realtime">
                             GPT Realtime
@@ -2680,12 +2709,6 @@ const ChatInterface = () => {
                           </SelectItem>
                           <SelectItem value="gpt-4o-mini">
                             GPT-4o Mini (Cascaded)
-                          </SelectItem>
-                          <SelectItem value="phi4-mm">
-                            Phi4-MM Realtime
-                          </SelectItem>
-                          <SelectItem value="phi4-mini">
-                            Phi4 Mini (Cascaded)
                           </SelectItem>
                         </SelectContent>
                       </Select>
@@ -2918,16 +2941,7 @@ const ChatInterface = () => {
                       ))}
                     </SelectContent>
                   </Select>
-                  {turnDetectionType?.type === "azure_semantic_vad" && (
-                    <div className="flex items-center justify-between text-sm font-medium">
-                      <span>Remove filler words</span>
-                      <Switch
-                        checked={removeFillerWords}
-                        onCheckedChange={setRemoveFillerWords}
-                        disabled={isConnected}
-                      />
-                    </div>
-                  )}
+
                 </div>
                 {isCascaded(mode, model) && (
                   <div className="space-y-2">
@@ -3600,7 +3614,7 @@ const ChatInterface = () => {
                     <label className="text-sm font-semibold text-gray-700">Voice Type</label>
                     <Select
                       value={voiceType}
-                      onValueChange={(value: string) => setVoiceType(value as "standard" | "custom" | "personal")}
+                      onValueChange={(value: string) => setVoiceType(value as "standard" | "custom" | "personal" | "azure-realtime-native")}
                       disabled={isConnected}
                     >
                       <SelectTrigger className="bg-white">
@@ -3610,9 +3624,65 @@ const ChatInterface = () => {
                         <SelectItem value="standard">Standard Voices</SelectItem>
                         <SelectItem value="custom">Custom Voice</SelectItem>
                         <SelectItem value="personal">Personal Voice</SelectItem>
+                        {isAvatar && isCustomAvatar && (
+                          <SelectItem value="avatar-voice-sync">Avatar Voice Sync</SelectItem>
+                        )}
+                        {model === "azure-realtime" && (
+                          <SelectItem value="azure-realtime-native">Azure Realtime Native</SelectItem>
+                        )}
                       </SelectContent>
                     </Select>
                   </div>
+
+                  {voiceType === "azure-realtime-native" && (
+                    <div className="space-y-2 pl-2 border-l-2 border-teal-200">
+                      <label className="text-sm font-medium text-gray-700">Voice</label>
+                      <Select
+                        value={voiceName || "ava"}
+                        onValueChange={setVoiceName}
+                        disabled={isConnected}
+                      >
+                        <SelectTrigger className="bg-white">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="aarti">Aarti</SelectItem>
+                          <SelectItem value="andrew">Andrew</SelectItem>
+                          <SelectItem value="ava">Ava</SelectItem>
+                          <SelectItem value="denise">Denise</SelectItem>
+                          <SelectItem value="elsa">Elsa</SelectItem>
+                          <SelectItem value="florian">Florian</SelectItem>
+                          <SelectItem value="francisca">Francisca</SelectItem>
+                          <SelectItem value="meera">Meera</SelectItem>
+                          <SelectItem value="xiaoxiao">Xiaoxiao</SelectItem>
+                          <SelectItem value="ximena">Ximena</SelectItem>
+                          <SelectItem value="yunxi">Yunxi</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  )}
+
+                  {voiceType === "avatar-voice-sync" && (
+                    <div className="space-y-3 pl-2 border-l-2 border-orange-200">
+                      <div className="space-y-2">
+                        <label className="text-sm font-medium text-gray-700">Voice Model</label>
+                        <Select
+                          value={avatarVoiceSyncModel}
+                          onValueChange={(value: string) => setAvatarVoiceSyncModel(value as "DragonLatestNeural" | "DragonHDOmniLatestNeural" | "mai-voice-1")}
+                          disabled={isConnected}
+                        >
+                          <SelectTrigger className="bg-white">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="DragonLatestNeural">Dragon</SelectItem>
+                            <SelectItem value="DragonHDOmniLatestNeural">Dragon Omni</SelectItem>
+                            <SelectItem value="mai-voice-1">MAI Voice 1</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </div>
+                  )}
 
                   {voiceType === "custom" && (
                     <div className="space-y-3 pl-2 border-l-2 border-blue-200">
@@ -3635,26 +3705,95 @@ const ChatInterface = () => {
 
                   {voiceType === "personal" && (
                     <div className="space-y-3 pl-2 border-l-2 border-green-200">
-                      <Input
-                        placeholder="Personal Voice Name"
-                        value={personalVoiceName}
-                        onChange={(e) => setPersonalVoiceName(e.target.value)}
-                        disabled={isConnected}
-                        className="bg-white"
-                      />
+                      <div className="space-y-2">
+                        <label className="text-sm font-medium text-gray-700">Personal Voice</label>
+                        <div className="flex gap-2">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={async () => {
+                              if (!endpoint) return;
+                              setIsFetchingPersonalVoices(true);
+                              try {
+                                const baseUrl = endpoint.endsWith("/") ? endpoint.slice(0, -1) : endpoint;
+                                const url = `${baseUrl}/customvoice/personalvoices?api-version=2024-02-01-preview`;
+                                const headers: Record<string, string> = {};
+                                if (entraToken) {
+                                  headers["Authorization"] = `Bearer ${entraToken}`;
+                                } else if (apiKey) {
+                                  headers["Ocp-Apim-Subscription-Key"] = apiKey;
+                                }
+                                const res = await fetch(url, { headers });
+                                if (!res.ok) {
+                                  throw new Error(`Failed to fetch: ${res.status} ${res.statusText}`);
+                                }
+                                const data = await res.json();
+                                const voices: PersonalVoiceInfo[] = (data.value || []).map((v: any) => ({
+                                  id: v.id,
+                                  displayName: v.displayName || v.id,
+                                  status: v.status,
+                                }));
+                                setPersonalVoices(voices);
+                                if (voices.length > 0 && !personalVoiceName) {
+                                  setPersonalVoiceName(voices[0].id);
+                                }
+                              } catch (error) {
+                                console.error("Failed to fetch personal voices:", error);
+                                setMessages((prev) => [
+                                  ...prev,
+                                  { type: "error", content: `Failed to fetch personal voices: ${error}` },
+                                ]);
+                              } finally {
+                                setIsFetchingPersonalVoices(false);
+                              }
+                            }}
+                            disabled={isConnected || !endpoint || isFetchingPersonalVoices}
+                            className="whitespace-nowrap"
+                          >
+                            {isFetchingPersonalVoices ? "Fetching..." : "Fetch Voices"}
+                          </Button>
+                        </div>
+                        {personalVoices.length > 0 ? (
+                          <Select
+                            value={personalVoiceName}
+                            onValueChange={setPersonalVoiceName}
+                            disabled={isConnected}
+                          >
+                            <SelectTrigger className="bg-white">
+                              <SelectValue placeholder="Select a personal voice" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {personalVoices.map((voice) => (
+                                <SelectItem key={voice.id} value={voice.id}>
+                                  {voice.displayName || voice.id} ({voice.status})
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        ) : (
+                          <Input
+                            placeholder="Personal voice name (or fetch voices above)"
+                            value={personalVoiceName}
+                            onChange={(e) => setPersonalVoiceName(e.target.value)}
+                            disabled={isConnected}
+                            className="bg-white"
+                          />
+                        )}
+                      </div>
                       <div className="space-y-2">
                         <label className="text-sm font-medium text-gray-700">Personal Voice Model</label>
                         <Select
                           value={personalVoiceModel}
-                          onValueChange={(value: string) => setPersonalVoiceModel(value as "DragonLatestNeural" | "DragonHDOmniLatestNeural")}
+                          onValueChange={(value: string) => setPersonalVoiceModel(value as "DragonLatestNeural" | "DragonHDOmniLatestNeural" | "mai-voice-1")}
                           disabled={isConnected}
                         >
                           <SelectTrigger className="bg-white">
                             <SelectValue placeholder="Select a model" />
                           </SelectTrigger>
                           <SelectContent>
-                            <SelectItem value="DragonLatestNeural">DragonLatestNeural</SelectItem>
-                            <SelectItem value="DragonHDOmniLatestNeural">DragonHDOmniLatestNeural</SelectItem>
+                            <SelectItem value="DragonLatestNeural">Dragon</SelectItem>
+                            <SelectItem value="DragonHDOmniLatestNeural">Dragon Omni</SelectItem>
+                            <SelectItem value="mai-voice-1">MAI Voice 1</SelectItem>
                           </SelectContent>
                         </Select>
                       </div>
@@ -3705,7 +3844,8 @@ const ChatInterface = () => {
                   )}
 
                   {/* Voice Temperature Slider */}
-                  {((voiceType === "custom" &&
+                  {((voiceType === "avatar-voice-sync") ||
+                    (voiceType === "custom" &&
                     customVoiceName.toLowerCase().includes("dragonhd")) ||
                     (voiceType === "personal") ||
                     (voiceType === "standard" &&
@@ -3850,12 +3990,101 @@ const ChatInterface = () => {
                     </Select>
                   )}
                   {isAvatar && isCustomAvatar && (
-                    <Input
-                      placeholder="Character"
-                      value={customAvatarName}
-                      onChange={(e) => setCustomAvatarName(e.target.value)}
-                      disabled={isConnected}
-                    />
+                    <div className="space-y-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={async () => {
+                          if (!endpoint) return;
+                          setIsFetchingCustomAvatars(true);
+                          try {
+                            const baseUrl = endpoint.endsWith("/") ? endpoint.slice(0, -1) : endpoint;
+                            const url = isPhotoAvatar
+                              ? `${baseUrl}/customavatar/endpoints?kind=PhotoAvatar&api-version=2023-12-01-preview`
+                              : `${baseUrl}/customavatar/endpoints?api-version=2023-12-01-preview`;
+                            const headers: Record<string, string> = {};
+                            if (entraToken) {
+                              headers["Authorization"] = `Bearer ${entraToken}`;
+                            } else if (apiKey) {
+                              headers["Ocp-Apim-Subscription-Key"] = apiKey;
+                            }
+                            const res = await fetch(url, { headers });
+                            if (!res.ok) {
+                              throw new Error(`Failed to fetch: ${res.status} ${res.statusText}`);
+                            }
+                            const data = await res.json();
+                            const avatars: CustomAvatarInfo[] = (data.value || []).map((v: any) => ({
+                              id: v.id,
+                              description: v.description || v.id,
+                              state: v.state,
+                              previewImageUrl: v.previewImages?.square?.location || v.previewImages?.wide?.location,
+                            }));
+                            setCustomAvatars(avatars);
+                            if (avatars.length > 0 && !customAvatarName) {
+                              setCustomAvatarName(avatars[0].id);
+                            }
+                          } catch (error) {
+                            console.error("Failed to fetch custom avatars:", error);
+                            setMessages((prev) => [
+                              ...prev,
+                              { type: "error", content: `Failed to fetch custom avatars: ${error}` },
+                            ]);
+                          } finally {
+                            setIsFetchingCustomAvatars(false);
+                          }
+                        }}
+                        disabled={isConnected || !endpoint || isFetchingCustomAvatars}
+                        className="whitespace-nowrap"
+                      >
+                        {isFetchingCustomAvatars ? "Fetching..." : "Fetch Custom Avatars"}
+                      </Button>
+                      {customAvatars.length > 0 ? (
+                        <>
+                        <Select
+                          value={customAvatarName}
+                          onValueChange={setCustomAvatarName}
+                          disabled={isConnected}
+                        >
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select a custom avatar" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {customAvatars.map((avatar) => (
+                              <SelectItem key={avatar.id} value={avatar.id}>
+                                <div className="flex items-center gap-2">
+                                  {avatar.previewImageUrl && (
+                                    <img
+                                      src={avatar.previewImageUrl}
+                                      alt={avatar.id}
+                                      className="w-6 h-6 rounded object-cover"
+                                    />
+                                  )}
+                                  <span>{avatar.id} ({avatar.state})</span>
+                                </div>
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        {(() => {
+                          const selected = customAvatars.find((a) => a.id === customAvatarName);
+                          return selected?.previewImageUrl ? (
+                            <img
+                              src={selected.previewImageUrl}
+                              alt={selected.id}
+                              className="w-full max-w-[200px] rounded border mt-1"
+                            />
+                          ) : null;
+                        })()}
+                        </>
+                      ) : (
+                        <Input
+                          placeholder="Character (or fetch avatars above)"
+                          value={customAvatarName}
+                          onChange={(e) => setCustomAvatarName(e.target.value)}
+                          disabled={isConnected}
+                        />
+                      )}
+                    </div>
                   )}
                 </div>
                 {isAvatar && (
