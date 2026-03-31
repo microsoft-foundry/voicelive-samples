@@ -180,6 +180,8 @@ async def get_languages():
 
 @app.websocket("/ws/{client_id}")
 async def websocket_endpoint(websocket: WebSocket, client_id: str):
+    # Sanitize user-controlled client_id to prevent log injection
+    client_id = client_id.replace("\n", "").replace("\r", "").replace("\t", "")
     await websocket.accept()
     logger.info(f"Client {client_id} connected")
 
@@ -212,6 +214,11 @@ async def _handle_message(client_id: str, message: dict, websocket: WebSocket):
         handler = _handlers.get(client_id)
         if handler:
             await handler.send_audio(message.get("data", ""))
+
+    elif msg_type == "send_text":
+        handler = _handlers.get(client_id)
+        if handler:
+            await handler.send_text(message.get("text", ""))
 
     elif msg_type == "interrupt":
         handler = _handlers.get(client_id)

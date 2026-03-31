@@ -1,23 +1,44 @@
-/* ─── Theme: Dark (default) ─── */
+/* ─── Theme tokens: alias CSS vars to Fluent tokens (inside FluentProvider scope) ─── */
+[data-theme="dark"], [data-theme="light"] {
+  --bg-1: var(--colorNeutralBackground3Selected, #f5f5f5);
+  --bg-2: var(--colorNeutralBackground1, #ffffff);
+  --bg-3: var(--colorNeutralBackground2, #f0f0f0);
+  --fg-1: var(--colorNeutralForeground1, #242424);
+  --fg-2: var(--colorNeutralForeground2, #616161);
+  --fg-3: var(--colorNeutralForeground3, #adadad);
+  --voice-primary: var(--colorBrandBackground, #7B5EA7);
+  --voice-secondary: var(--colorBrandBackgroundHover, #6741b0);
+  --brand-fg: var(--colorBrandForeground1, #7B5EA7);
+  --brand-bg-2: var(--colorBrandBackground2, rgba(123, 94, 167, 0.12));
+  --border: var(--colorNeutralStroke1, rgba(0,0,0,0.10));
+  --border-subtle: var(--colorNeutralStroke2, rgba(0,0,0,0.06));
+  --surface: var(--colorSubtleBackground, rgba(0,0,0,0.03));
+  --surface-overlay: var(--colorNeutralBackground5, rgba(0,0,0,0.05));
+  --control-bar-bg: var(--colorNeutralBackground1, #ffffff);
+  --scrollbar-thumb: var(--colorNeutralStroke2, rgba(0,0,0,0.15));
+  --backdrop: rgba(0, 0, 0, 0.3);
+  --error: #dc2626;
+  --error-bg: rgba(220, 38, 38, 0.9);
+  --error-bg-subtle: rgba(220, 38, 38, 0.1);
+  --warning: #d97706;
+}
+
+/* Dark theme — fallback values match Foundry Portal's dark theme (HSL step system) */
 [data-theme="dark"] {
-  --bg-1: #292929;
-  --bg-2: #1f1f1f;
-  --bg-3: #141414;
-  --fg-1: #ffffff;
-  --fg-2: #d6d6d6;
-  --fg-3: #adadad;
-  --voice-primary: #9775fa;
-  --voice-secondary: #7950f2;
+  --bg-1: var(--colorNeutralBackground3Selected, #1c1c1c);
+  --bg-2: var(--colorNeutralBackground1, #1f1f1f);
+  --bg-3: var(--colorNeutralBackground2, #1a1a1a);
+  --fg-1: var(--colorNeutralForeground1, #ffffff);
+  --fg-2: var(--colorNeutralForeground2, #d6d6d6);
+  --fg-3: var(--colorNeutralForeground3, #adadad);
+  --voice-primary: var(--colorBrandBackground, #7B5EA7);
+  --border: var(--colorNeutralStroke1, rgba(255,255,255,0.10));
+  --border-subtle: var(--colorNeutralStroke2, rgba(255,255,255,0.06));
+  --surface-overlay: var(--colorNeutralBackground5, rgba(255,255,255,0.05));
+  --control-bar-bg: var(--colorNeutralBackground1, #1f1f1f);
+  --scrollbar-thumb: var(--colorNeutralStroke2, rgba(255,255,255,0.15));
   --voice-glow: rgba(151, 117, 250, 0.4);
   --voice-bg-subtle: rgba(151, 117, 250, 0.15);
-  --brand-blue: #00A8F4;
-  --brand-blue-bg: rgba(0, 168, 244, 0.2);
-  --border: rgba(255, 255, 255, 0.08);
-  --border-subtle: rgba(255, 255, 255, 0.12);
-  --surface: rgba(255, 255, 255, 0.05);
-  --surface-overlay: rgba(255, 255, 255, 0.08);
-  --control-bar-bg: rgba(0, 0, 0, 0.3);
-  --scrollbar-thumb: rgba(255, 255, 255, 0.15);
   --backdrop: rgba(0, 0, 0, 0.5);
   --error: #ef4444;
   --error-bg: rgba(239, 68, 68, 0.9);
@@ -25,31 +46,9 @@
   --warning: #fbbf24;
 }
 
-/* ─── Theme: Light ─── */
 [data-theme="light"] {
-  --bg-1: #f5f5f5;
-  --bg-2: #ffffff;
-  --bg-3: #ebebeb;
-  --fg-1: #242424;
-  --fg-2: #424242;
-  --fg-3: #616161;
-  --voice-primary: #7c5cbf;
-  --voice-secondary: #6741b0;
   --voice-glow: rgba(124, 92, 191, 0.35);
   --voice-bg-subtle: rgba(124, 92, 191, 0.1);
-  --brand-blue: #005E8B;
-  --brand-blue-bg: rgba(0, 94, 139, 0.12);
-  --border: rgba(0, 0, 0, 0.08);
-  --border-subtle: rgba(0, 0, 0, 0.15);
-  --surface: rgba(0, 0, 0, 0.03);
-  --surface-overlay: rgba(0, 0, 0, 0.05);
-  --control-bar-bg: rgba(255, 255, 255, 0.85);
-  --scrollbar-thumb: rgba(0, 0, 0, 0.15);
-  --backdrop: rgba(0, 0, 0, 0.3);
-  --error: #dc2626;
-  --error-bg: rgba(220, 38, 38, 0.9);
-  --error-bg-subtle: rgba(220, 38, 38, 0.1);
-  --warning: #d97706;
 }
 
 /* ─── Reset ─── */
@@ -66,53 +65,95 @@ html, body, #root {
 }
 
 body {
-  font-family: 'Segoe UI', system-ui, -apple-system, Roboto, sans-serif;
+  font-family: Aptos, sans-serif;
   background: var(--bg-1);
   color: var(--fg-1);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  font-size: 14px;
+  line-height: 20px;
 }
 
-/* Button reset */
-button {
-  font-family: inherit;
+/* ─── App container — matches reference .container ─── */
+.appContainer {
+  position: relative;
+  container-type: inline-size;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  max-width: 100%;
+  height: 100%;
 }
 
-button:hover {
-  filter: brightness(1.08);
+/* ─── Content area — CSS Grid from reference .content ─── */
+.appContent {
+  position: relative;
+  overflow: hidden;
+  display: grid;
+  grid-template:
+    '. chatbot .' 100%
+    / 1fr minmax(min(450px, 100%), 50%) 1fr;
+  flex: 1;
+  align-items: center;
+  justify-content: center;
+  margin: 0 16px 12px;
 }
 
-button:active {
-  transform: scale(0.97);
+/* ─── Chatbot area — reference .chatbot ─── */
+.chatbotArea {
+  overflow: hidden;
+  display: flex;
+  grid-area: chatbot;
+  flex: 1;
+  flex-direction: column;
+  gap: 32px;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
 }
 
-/* Input/textarea theming */
-input, textarea, select {
-  font-family: inherit;
+/* ─── Badge — grid-positioned, reference .builtWithBadge ─── */
+.builtWithBadge {
+  grid-column: 1;
+  grid-row: 1;
+  place-self: end start;
+  margin-right: 8px;
 }
 
-input:focus, textarea:focus, select:focus {
-  border-color: var(--brand-blue) !important;
-  box-shadow: 0 0 0 2px var(--brand-blue-bg);
+@container (width <= 768px) {
+  .builtWithBadge {
+    display: none;
+  }
 }
 
-select option {
-  background: var(--bg-2);
-  color: var(--fg-1);
+/* ─── Waves container — reference .wavesContainer ─── */
+.wavesContainer {
+  pointer-events: none;
+  position: absolute;
+  z-index: 0;
+  bottom: 0;
+  left: 0;
+  overflow: hidden;
+  width: 100%;
+  height: 300px;
+  max-height: 100%;
+  animation: waves-fade-in 1s ease-in-out;
 }
 
-select optgroup {
-  background: var(--bg-3);
-  color: var(--fg-2);
-  font-weight: 600;
+.wavesContainer > canvas {
+  width: 100%;
+  height: 100%;
 }
 
-/* Checkbox accent color */
-input[type="checkbox"] {
-  accent-color: var(--brand-blue);
+/* ─── Responsive ─── */
+@media (width <= 576px) {
+  .appContent {
+    margin: 0 8px 8px;
+  }
 }
 
-/* Scrollbar styling */
+/* ─── Scrollbar styling ─── */
 ::-webkit-scrollbar {
   width: 6px;
 }
@@ -124,12 +165,12 @@ input[type="checkbox"] {
   border-radius: 3px;
 }
 
-/* Badge hover */
-a[aria-label="Built with Azure AI Foundry"]:hover {
+/* ─── Badge hover ─── */
+a[aria-label="Built with Microsoft Foundry"]:hover {
   opacity: 1 !important;
 }
 
-/* Animations */
+/* ─── Animations ─── */
 @keyframes fadeIn {
   from { opacity: 0; transform: translateY(-8px); }
   to { opacity: 1; transform: translateY(0); }
@@ -143,4 +184,9 @@ a[aria-label="Built with Azure AI Foundry"]:hover {
 @keyframes slideDown {
   from { opacity: 0; transform: translate(-50%, -20px); }
   to { opacity: 1; transform: translate(-50%, 0); }
+}
+
+@keyframes waves-fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
 }

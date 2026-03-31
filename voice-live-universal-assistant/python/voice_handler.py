@@ -285,6 +285,20 @@ class VoiceLiveHandler:
             except Exception as e:
                 logger.debug(f"[{self.client_id}] No response to cancel: {e}")
 
+    async def send_text(self, text: str) -> None:
+        """Send a text message via Voice Live (conversation.item.create + response.create)."""
+        if self.connection and text.strip():
+            try:
+                await self.connection.conversation.item.create(
+                    item=MessageItem(
+                        role="user",
+                        content=[InputTextContentPart(text=text.strip())],
+                    )
+                )
+                await self.connection.response.create()
+            except Exception as e:
+                logger.error(f"[{self.client_id}] Error sending text: {e}")
+
     async def stop(self) -> None:
         """Gracefully shut down the handler."""
         self.is_running = False
@@ -410,10 +424,20 @@ class VoiceLiveHandler:
     async def _handle_event(self, event, connection) -> None:  # noqa: C901
         t = event.type
 
-        # -- Session ready ------------------------------------------------
-        if t == ServerEventType.SESSION_UPDATED:
-            # Log the session config echoed back by the service
+        # -- Session created (carries service session ID) ------------------
+        if t == ServerEventType.SESSION_CREATED:
             session_obj = getattr(event, "session", None)
+            self._service_session_id = getattr(session_obj, "id", "") if session_obj else ""
+            safe_sid = self._service_session_id.replace("\n", "").replace("\r", "")
+            logger.info(f"[{self.client_id}] SESSION_CREATED — session_id: {safe_sid}")
+
+        # -- Session ready ------------------------------------------------
+        elif t == ServerEventType.SESSION_UPDATED:
+            session_obj = getattr(event, "session", None)
+            # Pick up session ID if not captured from SESSION_CREATED
+            if not getattr(self, "_service_session_id", ""):
+                self._service_session_id = getattr(session_obj, "id", "") if session_obj else ""
+
             if session_obj:
                 try:
                     session_dict = session_obj.as_dict() if hasattr(session_obj, "as_dict") else str(session_obj)
@@ -428,6 +452,7 @@ class VoiceLiveHandler:
 
             await self.send({
                 "type": "session_started",
+                "session_id": getattr(self, "_service_session_id", "") or self.client_id,
                 "config": {
                     "mode": self.config.mode,
                     "model": self.config.model,

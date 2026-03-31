@@ -114,6 +114,29 @@ export class VoiceHandler {
     }
   }
 
+  /**
+   * Send a text message via Voice Live (conversation.item.create + response.create).
+   * @param {string} text
+   */
+  async sendText(text) {
+    if (!this.session || !text.trim()) return;
+    try {
+      await this.session.sendEvent({
+        type: KnownClientEventType.ConversationItemCreate,
+        item: {
+          type: "message",
+          role: "user",
+          content: [{ type: "input_text", text: text.trim() }],
+        },
+      });
+      await this.session.sendEvent({
+        type: KnownClientEventType.ResponseCreate,
+      });
+    } catch (err) {
+      console.error(`[${this.clientId}] Error sending text:`, err);
+    }
+  }
+
   async interrupt() {
     if (!this.session) return;
     try {
@@ -252,9 +275,14 @@ export class VoiceHandler {
         }
       },
 
-      // Catch-all — handles session.updated and any other server events
+      // Catch-all — handles session events and any other server events
       onServerEvent: async (event, _context) => {
         const eventType = event?.type || "";
+
+        if (eventType === "session.created") {
+          this._serviceSessionId = event?.session?.id || "";
+          console.log(`[${this.clientId}] SESSION_CREATED — session_id: ${this._serviceSessionId}`);
+        }
 
         if (eventType === "session.updated") {
           this._handleSessionUpdated(event);
@@ -269,6 +297,11 @@ export class VoiceHandler {
 
   _handleSessionUpdated(event) {
     const sessionObj = event?.session;
+    // Pick up session ID if not captured from session.created
+    if (!this._serviceSessionId) {
+      this._serviceSessionId = sessionObj?.id || "";
+    }
+
     if (sessionObj) {
       try {
         console.log(
@@ -284,6 +317,7 @@ export class VoiceHandler {
 
     this.sendMessage({
       type: "session_started",
+      session_id: this._serviceSessionId || this.clientId,
       config: {
         mode: this.config.mode,
         model: this.config.model,

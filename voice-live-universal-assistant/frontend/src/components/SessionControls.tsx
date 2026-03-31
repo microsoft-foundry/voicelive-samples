@@ -1,4 +1,17 @@
-import React from 'react';
+import React, { useCallback } from 'react';
+import {
+  ClosedCaption24Regular,
+  ClosedCaptionOff24Regular,
+  Mic24Regular,
+  MicOff24Regular,
+  Dismiss24Regular,
+} from '@fluentui/react-icons';
+
+/* Hover/active handler matching reference: Fg2 → Fg1 on hover, scale(0.92) on active */
+const hoverIn = (e: React.MouseEvent<HTMLButtonElement>) => { e.currentTarget.style.color = 'var(--colorNeutralForeground1, #242424)'; };
+const hoverOut = (e: React.MouseEvent<HTMLButtonElement>) => { e.currentTarget.style.color = 'var(--colorNeutralForeground2, #424242)'; };
+const activeIn = (e: React.MouseEvent<HTMLButtonElement>) => { e.currentTarget.style.transform = 'scale(0.92)'; };
+const activeOut = (e: React.MouseEvent<HTMLButtonElement>) => { e.currentTarget.style.transform = ''; };
 
 interface SessionControlsProps {
   isCCEnabled: boolean;
@@ -9,102 +22,84 @@ interface SessionControlsProps {
 }
 
 export const SessionControls: React.FC<SessionControlsProps> = ({
-  isCCEnabled,
-  isMuted,
-  onToggleCC,
-  onToggleMute,
-  onEndSession,
+  isCCEnabled, isMuted, onToggleCC, onToggleMute, onEndSession,
 }) => {
   return (
-    <div style={barStyle}>
-      {/* CC Toggle */}
-      <button
-        style={{
-          ...btnStyle,
-          ...(isCCEnabled ? activeBtnStyle : {}),
-        }}
-        onClick={onToggleCC}
-        aria-label="Toggle closed captions"
-        title="Closed captions"
-      >
-        <span style={{ fontSize: '14px', fontWeight: 700, letterSpacing: '0.5px' }}>CC</span>
+    <div style={actionBarStyle}>
+      {/* CC — icon-only, transparent, Fg2 at rest, Fg1 on hover */}
+      <button onClick={onToggleCC} aria-label="Toggle closed captions" title="Closed captions" style={iconButtonStyle}
+        onMouseEnter={hoverIn} onMouseLeave={hoverOut} onMouseDown={activeIn} onMouseUp={activeOut}>
+        {isCCEnabled ? <ClosedCaption24Regular /> : <ClosedCaptionOff24Regular />}
       </button>
 
-      {/* Mic Toggle */}
+      {/* Mic — icon-only, brand border, neutral bg */}
       <button
-        style={{
-          ...btnStyle,
-          ...(isMuted ? mutedBtnStyle : {}),
-        }}
         onClick={onToggleMute}
         aria-label={isMuted ? 'Unmute microphone' : 'Mute microphone'}
         title={isMuted ? 'Unmute' : 'Mute'}
+        style={isMuted ? { ...micButtonStyle, ...mutedActiveStyle } : micButtonStyle}
       >
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-          <rect x="9" y="1" width="6" height="12" rx="3" />
-          <path d="M19 10v2a7 7 0 0 1-14 0v-2" />
-          <line x1="12" y1="19" x2="12" y2="23" />
-          <line x1="8" y1="23" x2="16" y2="23" />
-          {isMuted && <line x1="1" y1="1" x2="23" y2="23" stroke="var(--error)" strokeWidth="2.5" />}
-        </svg>
+        {isMuted ? <MicOff24Regular /> : <Mic24Regular />}
       </button>
 
-      {/* End Session */}
-      <button
-        style={{ ...btnStyle, ...endBtnStyle }}
-        onClick={onEndSession}
-        aria-label="End session"
-        title="End session"
-      >
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-          <line x1="18" y1="6" x2="6" y2="18" />
-          <line x1="6" y1="6" x2="18" y2="18" />
-        </svg>
+      {/* End — icon-only dismiss X, Fg2 at rest, Fg1 on hover */}
+      <button onClick={onEndSession} aria-label="End session" title="End session" style={iconButtonStyle}
+        onMouseEnter={hoverIn} onMouseLeave={hoverOut} onMouseDown={activeIn} onMouseUp={activeOut}>
+        <Dismiss24Regular />
       </button>
     </div>
   );
 };
 
-const barStyle: React.CSSProperties = {
-  position: 'fixed',
-  bottom: 0,
-  left: 0,
-  right: 0,
+/* Reference: .actionBar — gap: spacingS (8px), centered */
+const actionBarStyle: React.CSSProperties = {
   display: 'flex',
-  justifyContent: 'center',
+  gap: '8px',
   alignItems: 'center',
-  gap: '16px',
-  padding: '20px',
-  background: 'var(--control-bar-bg)',
-  backdropFilter: 'blur(10px)',
+  justifyContent: 'center',
+  padding: '16px',
+  flexShrink: 0,
 };
 
-const btnStyle: React.CSSProperties = {
-  width: '48px',
-  height: '48px',
-  borderRadius: '50%',
-  border: '1px solid var(--border-subtle)',
-  background: 'var(--surface)',
-  color: 'var(--fg-1)',
+/* Reference: .iconButton — 40x40, transparent, no border, Fg2 at rest, Fg1 on hover */
+const iconButtonStyle: React.CSSProperties = {
+  width: '40px',
+  height: '40px',
+  padding: '8px',
+  border: 'none',
+  borderRadius: 'var(--borderRadiusCircular, 9999px)',
+  color: 'var(--colorNeutralForeground2, #424242)',
+  background: 'transparent',
   cursor: 'pointer',
   display: 'flex',
   alignItems: 'center',
   justifyContent: 'center',
-  transition: 'background 0.2s, border-color 0.2s',
+  fontFamily: 'inherit',
+  transition: 'color 120ms ease',
 };
 
-const activeBtnStyle: React.CSSProperties = {
-  background: 'var(--brand-blue-bg)',
-  borderColor: 'var(--brand-blue)',
+/* Reference: .micOnlyButton — 40x40, brand border, brandFg1, neutral bg1 */
+const micButtonStyle: React.CSSProperties = {
+  width: '40px',
+  height: '40px',
+  padding: '8px',
+  border: '1px solid var(--colorBrandBackground, var(--voice-primary))',
+  borderRadius: 'var(--borderRadiusCircular, 9999px)',
+  color: 'var(--colorBrandForeground1, var(--voice-primary))',
+  background: 'var(--colorNeutralBackground1, var(--bg-2))',
+  cursor: 'pointer',
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  fontFamily: 'inherit',
+  transition: 'all 120ms ease',
 };
 
-const mutedBtnStyle: React.CSSProperties = {
-  background: 'var(--error-bg-subtle)',
-  borderColor: 'var(--error)',
+/* Reference: .mutedActive — neutral bg3, neutral fg1, brand stroke border */
+const mutedActiveStyle: React.CSSProperties = {
+  border: '1px solid var(--colorBrandStroke1, var(--voice-primary))',
+  color: 'var(--colorNeutralForeground1, var(--fg-1))',
+  background: 'var(--colorNeutralBackground3, var(--bg-3))',
 };
 
-const endBtnStyle: React.CSSProperties = {
-  background: 'var(--error-bg-subtle)',
-  borderColor: 'var(--error)',
-  color: 'var(--error)',
-};
+/* endButtonStyle no longer needed — End is now an icon-only Dismiss button */

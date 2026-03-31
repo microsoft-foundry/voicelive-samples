@@ -49,10 +49,12 @@ export function useVoiceSession() {
   const [isCCEnabled, setIsCCEnabled] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [azureSpeechLocales, setAzureSpeechLocales] = useState<string[]>([]);
+  const [configLoaded, setConfigLoaded] = useState(false);
 
   const wsRef = useRef<WebSocket | null>(null);
   const clientIdRef = useRef<string>(generateClientId());
   const stateRef = useRef<SessionState>(state);
+  const inputModeRef = useRef<'voice' | 'text'>('voice');
 
   // Keep stateRef in sync so ws.onclose always reads the live value
   useEffect(() => { stateRef.current = state; }, [state]);
@@ -82,8 +84,12 @@ export function useVoiceSession() {
           }
           return merged;
         });
+        setConfigLoaded(true);
       })
-      .catch((err) => console.warn('Failed to fetch /config:', err));
+      .catch((err) => {
+        console.warn('Failed to fetch /config:', err);
+        setConfigLoaded(true);
+      });
 
     fetch('/languages')
       .then((res) => res.json())
@@ -95,7 +101,13 @@ export function useVoiceSession() {
       .catch((err) => console.warn('Failed to fetch /languages:', err));
   }, []);
 
-  const { playAudio, stopPlayback, cleanupPlayback, initPlayback } = useAudioPlayback();
+  const { playAudio: rawPlayAudio, stopPlayback, cleanupPlayback, initPlayback, isPlaybackMuted, isMutedRef, togglePlaybackMute, resetPlaybackMute } = useAudioPlayback();
+
+  // In text mode, skip audio when muted. Uses ref to avoid stale closure in WebSocket handler.
+  const playAudio = useCallback(async (data: string) => {
+    if (inputModeRef.current === 'text' && isMutedRef.current) return;
+    return rawPlayAudio(data);
+  }, [rawPlayAudio, isMutedRef]);
 
   const sendWsMessage = useCallback((type: string, data?: any) => {
     if (wsRef.current?.readyState === WebSocket.OPEN) {
@@ -120,10 +132,12 @@ export function useVoiceSession() {
         case 'session_started':
           setSessionId(msg.session_id || '');
           setState('listening');
-          startCapture().catch((err) => {
-            console.error('Mic access failed:', err);
-            setState('ended');
-          });
+          if (inputModeRef.current === 'voice') {
+            startCapture().catch((err) => {
+              console.error('Mic access failed:', err);
+              setState('ended');
+            });
+          }
           break;
 
         case 'audio_data':
@@ -305,12 +319,26 @@ export function useVoiceSession() {
     setTranscripts([]);
     setSessionId('');
     setErrorMessage(null);
+    resetPlaybackMute();
     clientIdRef.current = generateClientId();
   }, []);
 
   const dismissError = useCallback(() => {
     setErrorMessage(null);
   }, []);
+
+  /** Send a text message via Voice Live (conversation.item.create + response.create). */
+  const sendTextMessage = useCallback((text: string) => {
+    if (!text.trim()) return;
+    // Barge-in: stop any playing audio when user sends input
+    stopPlayback();
+    // Add user transcript immediately for responsive UI
+    setTranscripts((prev) => [
+      ...prev,
+      { role: 'user', text: text.trim(), isFinal: true, timestamp: Date.now() },
+    ]);
+    sendWsMessage('send_text', { text: text.trim() });
+  }, [sendWsMessage, stopPlayback]);
 
   // Cleanup on unmount
   useEffect(() => {
@@ -338,5 +366,10 @@ export function useVoiceSession() {
     errorMessage,
     dismissError,
     azureSpeechLocales,
+    sendTextMessage,
+    configLoaded,
+    setInputModeRef: useCallback((mode: 'voice' | 'text') => { inputModeRef.current = mode; }, []),
+    isPlaybackMuted,
+    togglePlaybackMute,
   };
 }

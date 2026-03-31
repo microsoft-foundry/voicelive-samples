@@ -16,26 +16,26 @@ function resolveTheme(pref: ThemePreference): ResolvedTheme {
 export function useTheme() {
   const [preference, setPreference] = useState<ThemePreference>(() => {
     const stored = localStorage.getItem(STORAGE_KEY);
-    return (stored as ThemePreference) || 'system';
+    return (stored as ThemePreference) || 'light';
   });
 
-  const resolved = resolveTheme(preference);
+  // Track system theme changes for FluentProvider re-render
+  const [systemTheme, setSystemTheme] = useState<ResolvedTheme>(getSystemTheme());
+
+  const resolved: ResolvedTheme = preference === 'system' ? systemTheme : preference;
 
   // Apply theme to <html> element
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', resolved);
   }, [resolved]);
 
-  // Listen for system theme changes when preference is 'system'
+  // Listen for system theme changes
   useEffect(() => {
-    if (preference !== 'system') return;
     const mq = window.matchMedia('(prefers-color-scheme: dark)');
-    const handler = () => {
-      document.documentElement.setAttribute('data-theme', getSystemTheme());
-    };
+    const handler = () => setSystemTheme(getSystemTheme());
     mq.addEventListener('change', handler);
     return () => mq.removeEventListener('change', handler);
-  }, [preference]);
+  }, []);
 
   const setTheme = useCallback((pref: ThemePreference) => {
     setPreference(pref);

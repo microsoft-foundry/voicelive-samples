@@ -1,4 +1,6 @@
 import React from 'react';
+import { Button, Text, Label, Select, Input, Textarea, Slider, Checkbox } from '@fluentui/react-components';
+import { DismissRegular } from '@fluentui/react-icons';
 import type { VoiceSettings } from '../types';
 import type { ThemePreference } from '../hooks/useTheme';
 
@@ -134,104 +136,88 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
       <div style={backdropStyle} onClick={onClose} />
       <div style={panelStyle}>
         <div style={headerStyle}>
-          <h2 style={titleStyle}>Settings</h2>
-          <button style={closeBtnStyle} onClick={onClose} aria-label="Close settings">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--fg-1)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-              <line x1="18" y1="6" x2="6" y2="18" />
-              <line x1="6" y1="6" x2="18" y2="18" />
-            </svg>
-          </button>
+          <Text weight="semibold" size={500}>Settings</Text>
+          <Button appearance="subtle" icon={<DismissRegular />} onClick={onClose} aria-label="Close settings" />
         </div>
 
         {/* Theme picker */}
         <div style={fieldStyle}>
-          <label style={labelStyle}>Theme</label>
-          <div style={segmentedStyle}>
-            {(['light', 'dark', 'system'] as ThemePreference[]).map((t) => (
-              <button
-                key={t}
-                style={{
-                  ...segBtnStyle,
-                  ...(theme === t ? segActiveBlueStyle : {}),
-                }}
-                onClick={() => onThemeChange(t)}
-              >
-                {t.charAt(0).toUpperCase() + t.slice(1)}
-              </button>
-            ))}
-          </div>
+          <Label weight="semibold">Theme</Label>
+          <Select
+            value={theme}
+            onChange={(_e, data) => onThemeChange(data.value as ThemePreference)}
+          >
+            <option value="light">Light</option>
+            <option value="dark">Dark</option>
+            <option value="system">System</option>
+          </Select>
         </div>
 
         <hr style={dividerStyle} />
 
         {/* Mode toggle */}
         <div style={fieldStyle}>
-          <label style={labelStyle}>Mode</label>
+          <Label weight="semibold">Mode</Label>
           <div style={segmentedStyle}>
-            <button
-              style={{
-                ...segBtnStyle,
-                ...(settings.mode === 'model' ? segActiveBlueStyle : {}),
-              }}
+            <Button
+              appearance={settings.mode === 'model' ? 'primary' : 'subtle'}
+              style={{ flex: 1 }}
               onClick={() => onUpdate({ mode: 'model' })}
             >
               Model
-            </button>
-            <button
-              style={{
-                ...segBtnStyle,
-                ...(settings.mode === 'agent' ? segActiveBlueStyle : {}),
-              }}
+            </Button>
+            <Button
+              appearance={settings.mode === 'agent' ? 'primary' : 'subtle'}
+              style={{ flex: 1 }}
               onClick={() => onUpdate({ mode: 'agent' })}
+              disabled={!settings.agentName && !settings.project && settings.mode !== 'agent'}
+              title={!settings.agentName && !settings.project ? 'No agent configured on server' : undefined}
             >
               Agent
-            </button>
+            </Button>
           </div>
         </div>
 
         {/* Voice Type + Voice (shared between modes) */}
         <div style={fieldStyle}>
-          <label style={labelStyle}>Voice Type</label>
-          <select
-            style={inputStyle}
+          <Label weight="semibold">Voice Type</Label>
+          <Select
             value={settings.voiceType}
-            onChange={(e) => {
-              const newType = e.target.value as 'openai' | 'azure-standard';
+            onChange={(_e, data) => {
+              const newType = data.value as 'openai' | 'azure-standard';
               const defaultVoice = newType === 'openai' ? 'alloy' : 'en-US-Ava:DragonHDLatestNeural';
               onUpdate({ voiceType: newType, voice: defaultVoice });
             }}
           >
             <option value="openai">OpenAI</option>
             <option value="azure-standard">Azure Standard</option>
-          </select>
+          </Select>
         </div>
 
         <div style={fieldStyle}>
-          <label style={labelStyle}>Voice</label>
+          <Label weight="semibold">Voice</Label>
           {settings.voiceType === 'openai' ? (
-            <select
-              style={inputStyle}
+            <Select
               value={settings.voice}
-              onChange={(e) => onUpdate({ voice: e.target.value })}
+              onChange={(_e, data) => onUpdate({ voice: data.value })}
             >
               {OPENAI_VOICES.map((v) => (
                 <option key={v} value={v}>{v}</option>
               ))}
-            </select>
+            </Select>
           ) : (
             <>
-              <select
-                style={inputStyle}
+              <Select
                 value={
                   AZURE_DRAGON_HD_VOICES.includes(settings.voice)
                     ? settings.voice
                     : CUSTOM_VOICE_SENTINEL
                 }
-                onChange={(e) => {
-                  if (e.target.value === CUSTOM_VOICE_SENTINEL) {
+                onChange={(_e, data) => {
+                  if (data.value === CUSTOM_VOICE_SENTINEL) {
                     onUpdate({ voice: '' });
                   } else {
-                    onUpdate({ voice: e.target.value });
+                    onUpdate({ voice: data.value });
                   }
                 }}
               >
@@ -243,12 +229,12 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
                 <optgroup label="Other">
                   <option value={CUSTOM_VOICE_SENTINEL}>Custom (type below)…</option>
                 </optgroup>
-              </select>
+              </Select>
               {(!AZURE_DRAGON_HD_VOICES.includes(settings.voice)) && (
-                <input
-                  style={{ ...inputStyle, marginTop: 6 }}
+                <Input
+                  style={{ marginTop: 6 }}
                   value={settings.voice}
-                  onChange={(e) => onUpdate({ voice: e.target.value })}
+                  onChange={(_e, data) => onUpdate({ voice: data.value })}
                   placeholder="e.g. en-US-JennyNeural"
                 />
               )}
@@ -261,15 +247,13 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
         {settings.mode === 'model' ? (
           <>
             <div style={fieldStyle}>
-              <label style={labelStyle}>Model</label>
-              <select
-                style={inputStyle}
+              <Label weight="semibold">Model</Label>
+              <Select
                 value={settings.model}
-                onChange={(e) => {
-                  const newModel = e.target.value;
+                onChange={(_e, data) => {
+                  const newModel = data.value;
                   const validOptions = getTranscribeModelOptions(newModel);
                   const updates: Partial<VoiceSettings> = { model: newModel };
-                  // Auto-correct transcribeModel if current selection isn't valid for new model
                   if (!validOptions.some((o) => o.value === settings.transcribeModel)) {
                     updates.transcribeModel = validOptions[0].value;
                     updates.inputLanguage = '';
@@ -301,54 +285,50 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
                   <option value="phi4-mm-realtime">phi4-mm-realtime (preview)</option>
                   <option value="phi4-mini">phi4-mini (preview)</option>
                 </optgroup>
-              </select>
+              </Select>
             </div>
 
             <div style={fieldStyle}>
-              <label style={labelStyle}>System Prompt</label>
-              <textarea
-                style={textareaStyle}
+              <Label weight="semibold">System Prompt</Label>
+              <Textarea
                 value={settings.instructions}
-                onChange={(e) => onUpdate({ instructions: e.target.value })}
+                onChange={(_e, data) => onUpdate({ instructions: data.value })}
                 placeholder="Optional instructions for the model..."
                 rows={4}
+                resize="vertical"
               />
             </div>
 
             <div style={fieldStyle}>
-              <label style={labelStyle}>
+              <Label weight="semibold">
                 Temperature: {settings.temperature.toFixed(1)}
-              </label>
-              <input
-                type="range"
-                min="0"
-                max="1"
-                step="0.1"
+              </Label>
+              <Slider
+                min={0}
+                max={1}
+                step={0.1}
                 value={settings.temperature}
-                onChange={(e) => onUpdate({ temperature: parseFloat(e.target.value) })}
-                style={rangeStyle}
+                onChange={(_e, data) => onUpdate({ temperature: data.value })}
               />
             </div>
 
             <div style={fieldStyle}>
-              <label style={labelStyle}>Speech Input Transcription Model</label>
-              <select
-                style={inputStyle}
+              <Label weight="semibold">Speech Input Transcription Model</Label>
+              <Select
                 value={settings.transcribeModel}
-                onChange={(e) => onUpdate({ transcribeModel: e.target.value, inputLanguage: '' })}
+                onChange={(_e, data) => onUpdate({ transcribeModel: data.value, inputLanguage: '' })}
               >
                 {getTranscribeModelOptions(settings.model).map((opt) => (
                   <option key={opt.value} value={opt.value}>{opt.label}</option>
                 ))}
-              </select>
+              </Select>
             </div>
 
             <div style={fieldStyle}>
-              <label style={labelStyle}>Speech Input Language</label>
-              <select
-                style={inputStyle}
+              <Label weight="semibold">Speech Input Language</Label>
+              <Select
                 value={settings.inputLanguage}
-                onChange={(e) => onUpdate({ inputLanguage: e.target.value })}
+                onChange={(_e, data) => onUpdate({ inputLanguage: data.value })}
               >
                 {(isAzureSpeechTranscription(settings.model, settings.transcribeModel)
                   ? buildAzureSpeechLanguageOptions(azureSpeechLocales)
@@ -356,92 +336,85 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
                 ).map((opt) => (
                   <option key={opt.value} value={opt.value}>{opt.label}</option>
                 ))}
-              </select>
+              </Select>
             </div>
           </>
         ) : (
           <>
             <div style={fieldStyle}>
-              <label style={labelStyle}>Agent Name</label>
-              <input
-                style={inputStyle}
+              <Label weight="semibold">Agent Name</Label>
+              <Input
                 value={settings.agentName}
-                onChange={(e) => onUpdate({ agentName: e.target.value })}
+                onChange={(_e, data) => onUpdate({ agentName: data.value })}
                 placeholder="Enter agent name"
               />
             </div>
 
             <div style={fieldStyle}>
-              <label style={labelStyle}>Project</label>
-              <input
-                style={inputStyle}
+              <Label weight="semibold">Project</Label>
+              <Input
                 value={settings.project}
-                onChange={(e) => onUpdate({ project: e.target.value })}
+                onChange={(_e, data) => onUpdate({ project: data.value })}
                 placeholder="Enter project name"
               />
             </div>
 
             <div style={fieldStyle}>
-              <label style={{ ...labelStyle, color: 'var(--fg-3)' }}>
+              <Label weight="semibold" style={{ color: 'var(--fg-2)' }}>
                 Agent Version <span style={optionalBadgeStyle}>optional</span>
-              </label>
-              <input
-                style={inputStyle}
+              </Label>
+              <Input
                 value={settings.agentVersion}
-                onChange={(e) => onUpdate({ agentVersion: e.target.value })}
+                onChange={(_e, data) => onUpdate({ agentVersion: data.value })}
                 placeholder="e.g. 1.0"
               />
             </div>
 
             <div style={fieldStyle}>
-              <label style={{ ...labelStyle, color: 'var(--fg-3)' }}>
+              <Label weight="semibold" style={{ color: 'var(--fg-2)' }}>
                 Conversation ID <span style={optionalBadgeStyle}>optional</span>
-              </label>
-              <input
-                style={inputStyle}
+              </Label>
+              <Input
                 value={settings.conversationId}
-                onChange={(e) => onUpdate({ conversationId: e.target.value })}
+                onChange={(_e, data) => onUpdate({ conversationId: data.value })}
                 placeholder="Resume an existing conversation"
               />
             </div>
 
             <div style={fieldStyle}>
-              <label style={{ ...labelStyle, color: 'var(--fg-3)' }}>
+              <Label weight="semibold" style={{ color: 'var(--fg-2)' }}>
                 Foundry Resource Override <span style={optionalBadgeStyle}>optional</span>
-              </label>
-              <input
-                style={inputStyle}
+              </Label>
+              <Input
                 value={settings.foundryResourceOverride}
-                onChange={(e) => onUpdate({ foundryResourceOverride: e.target.value })}
+                onChange={(_e, data) => onUpdate({ foundryResourceOverride: data.value })}
                 placeholder="Override default Foundry resource"
               />
             </div>
 
             <div style={fieldStyle}>
-              <label style={{ ...labelStyle, color: 'var(--fg-3)' }}>
+              <Label weight="semibold" style={{ color: 'var(--fg-2)' }}>
                 Auth Identity Client ID <span style={optionalBadgeStyle}>optional</span>
-              </label>
-              <input
-                style={inputStyle}
+              </Label>
+              <Input
                 value={settings.authIdentityClientId}
-                onChange={(e) => onUpdate({ authIdentityClientId: e.target.value })}
+                onChange={(_e, data) => onUpdate({ authIdentityClientId: data.value })}
                 placeholder="Managed identity client ID"
               />
             </div>
 
             <div style={fieldStyle}>
-              <label style={{ ...labelStyle, color: 'var(--fg-3)' }}>
+              <Label weight="semibold" style={{ color: 'var(--fg-2)' }}>
                 Speech Input Language <span style={optionalBadgeStyle}>optional</span>
-              </label>
-              <select
-                style={inputStyle}
+              </Label>
+              <Select
                 value={settings.inputLanguage}
-                onChange={(e) => onUpdate({ inputLanguage: e.target.value })}
+                onChange={(_e, data) => onUpdate({ inputLanguage: data.value })}
               >
                 {buildAzureSpeechLanguageOptions(azureSpeechLocales).map((opt) => (
                   <option key={opt.value} value={opt.value}>{opt.label}</option>
                 ))}
-              </select>
+              </Select>
             </div>
           </>
         )}
@@ -450,58 +423,51 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
 
         {/* Proactive Engagement */}
         <div style={checkboxRowStyle}>
-          <label style={checkboxLabelStyle}>
-            <input
-              type="checkbox"
-              checked={settings.proactiveGreeting}
-              onChange={(e) => onUpdate({ proactiveGreeting: e.target.checked })}
-            />
-            Proactive Engagement
-          </label>
+          <Checkbox
+            checked={settings.proactiveGreeting}
+            onChange={(_e, data) => onUpdate({ proactiveGreeting: !!data.checked })}
+            label="Proactive Engagement"
+          />
         </div>
 
         {settings.proactiveGreeting && (
           <>
             <div style={fieldStyle}>
-              <label style={labelStyle}>Greeting Type</label>
+              <Label weight="semibold">Greeting Type</Label>
               <div style={segmentedStyle}>
-                <button
-                  style={{
-                    ...segBtnStyle,
-                    ...(settings.greetingType === 'llm' ? segActiveBlueStyle : {}),
-                  }}
+                <Button
+                  appearance={settings.greetingType === 'llm' ? 'primary' : 'subtle'}
+                  style={{ flex: 1 }}
                   onClick={() => onUpdate({ greetingType: 'llm' })}
                 >
                   LLM-Generated
-                </button>
-                <button
-                  style={{
-                    ...segBtnStyle,
-                    ...(settings.greetingType === 'pregenerated' ? segActiveBlueStyle : {}),
-                  }}
+                </Button>
+                <Button
+                  appearance={settings.greetingType === 'pregenerated' ? 'primary' : 'subtle'}
+                  style={{ flex: 1 }}
                   onClick={() => onUpdate({ greetingType: 'pregenerated' })}
                 >
                   Pre-Generated
-                </button>
+                </Button>
               </div>
             </div>
 
             <div style={fieldStyle}>
-              <label style={labelStyle}>
+              <Label weight="semibold">
                 {settings.greetingType === 'llm'
                   ? 'Greeting Instruction'
                   : 'Greeting Text'}
-              </label>
-              <textarea
-                style={textareaStyle}
+              </Label>
+              <Textarea
                 value={settings.greetingText}
-                onChange={(e) => onUpdate({ greetingText: e.target.value })}
+                onChange={(_e, data) => onUpdate({ greetingText: data.value })}
                 placeholder={
                   settings.greetingType === 'llm'
                     ? 'Greet the user warmly and briefly explain how you can help.'
                     : 'Welcome! I\'m here to help you get started.'
                 }
                 rows={2}
+                resize="vertical"
               />
             </div>
           </>
@@ -515,18 +481,19 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
             && [...GPT_MULTIMODAL_MODELS, ...PHI_MULTIMODAL_MODELS].includes(settings.model);
           return (
             <div style={checkboxRowStyle}>
-              <label style={{ ...checkboxLabelStyle, opacity: isRealtimeModelMode ? 0.45 : 1, cursor: isRealtimeModelMode ? 'not-allowed' : 'pointer' }}>
-                <input
-                  type="checkbox"
-                  checked={isRealtimeModelMode ? false : settings.interimResponse}
-                  disabled={isRealtimeModelMode}
-                  onChange={(e) => onUpdate({ interimResponse: e.target.checked })}
-                />
-                Interim Response
-                {isRealtimeModelMode && (
-                  <span style={{ fontSize: '0.75rem', color: 'var(--fg-3)', marginLeft: 6 }}>(text models only)</span>
-                )}
-              </label>
+              <Checkbox
+                checked={isRealtimeModelMode ? false : settings.interimResponse}
+                disabled={isRealtimeModelMode}
+                onChange={(_e, data) => onUpdate({ interimResponse: !!data.checked })}
+                label={
+                  <>
+                    Interim Response
+                    {isRealtimeModelMode && (
+                      <span style={{ fontSize: '12px', color: 'var(--fg-2)', marginLeft: 6 }}>(text models only)</span>
+                    )}
+                  </>
+                }
+              />
             </div>
           );
         })()}
@@ -534,88 +501,76 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
         {settings.interimResponse && (
           <>
             <div style={fieldStyle}>
-              <label style={labelStyle}>Interim Response Type</label>
+              <Label weight="semibold">Interim Response Type</Label>
               <div style={segmentedStyle}>
-                <button
-                  style={{
-                    ...segBtnStyle,
-                    ...(settings.interimResponseType === 'llm' ? segActiveBlueStyle : {}),
-                  }}
+                <Button
+                  appearance={settings.interimResponseType === 'llm' ? 'primary' : 'subtle'}
+                  style={{ flex: 1 }}
                   onClick={() => onUpdate({ interimResponseType: 'llm' })}
                 >
                   LLM-Generated
-                </button>
-                <button
-                  style={{
-                    ...segBtnStyle,
-                    ...(settings.interimResponseType === 'static' ? segActiveBlueStyle : {}),
-                  }}
+                </Button>
+                <Button
+                  appearance={settings.interimResponseType === 'static' ? 'primary' : 'subtle'}
+                  style={{ flex: 1 }}
                   onClick={() => onUpdate({ interimResponseType: 'static' })}
                 >
                   Static
-                </button>
+                </Button>
               </div>
             </div>
 
             <div style={fieldStyle}>
-              <label style={labelStyle}>Triggers</label>
+              <Label weight="semibold">Triggers</Label>
               <div style={{ display: 'flex', gap: '16px' }}>
-                <label style={checkboxLabelStyle}>
-                  <input
-                    type="checkbox"
-                    checked={settings.interimTriggerTool}
-                    onChange={(e) => onUpdate({ interimTriggerTool: e.target.checked })}
-                  />
-                  Tool Call
-                </label>
-                <label style={checkboxLabelStyle}>
-                  <input
-                    type="checkbox"
-                    checked={settings.interimTriggerLatency}
-                    onChange={(e) => onUpdate({ interimTriggerLatency: e.target.checked })}
-                  />
-                  Latency
-                </label>
+                <Checkbox
+                  checked={settings.interimTriggerTool}
+                  onChange={(_e, data) => onUpdate({ interimTriggerTool: !!data.checked })}
+                  label="Tool Call"
+                />
+                <Checkbox
+                  checked={settings.interimTriggerLatency}
+                  onChange={(_e, data) => onUpdate({ interimTriggerLatency: !!data.checked })}
+                  label="Latency"
+                />
               </div>
             </div>
 
             {settings.interimTriggerLatency && (
               <div style={fieldStyle}>
-                <label style={labelStyle}>
+                <Label weight="semibold">
                   Latency Threshold: {settings.interimLatencyMs}ms
-                </label>
-                <input
-                  type="range"
-                  min="50"
-                  max="2000"
-                  step="50"
+                </Label>
+                <Slider
+                  min={50}
+                  max={2000}
+                  step={50}
                   value={settings.interimLatencyMs}
-                  onChange={(e) => onUpdate({ interimLatencyMs: parseInt(e.target.value) })}
-                  style={rangeStyle}
+                  onChange={(_e, data) => onUpdate({ interimLatencyMs: data.value })}
                 />
               </div>
             )}
 
             {settings.interimResponseType === 'llm' ? (
               <div style={fieldStyle}>
-                <label style={labelStyle}>LLM Instructions</label>
-                <textarea
-                  style={textareaStyle}
+                <Label weight="semibold">LLM Instructions</Label>
+                <Textarea
                   value={settings.interimInstructions}
-                  onChange={(e) => onUpdate({ interimInstructions: e.target.value })}
+                  onChange={(_e, data) => onUpdate({ interimInstructions: data.value })}
                   placeholder="Create friendly interim responses indicating wait time due to ongoing processing, if any."
                   rows={2}
+                  resize="vertical"
                 />
               </div>
             ) : (
               <div style={fieldStyle}>
-                <label style={labelStyle}>Static Texts (one per line)</label>
-                <textarea
-                  style={textareaStyle}
+                <Label weight="semibold">Static Texts (one per line)</Label>
+                <Textarea
                   value={settings.interimStaticTexts}
-                  onChange={(e) => onUpdate({ interimStaticTexts: e.target.value })}
+                  onChange={(_e, data) => onUpdate({ interimStaticTexts: data.value })}
                   placeholder={"One moment please...\nLet me look that up...\nWorking on it..."}
                   rows={3}
+                  resize="vertical"
                 />
               </div>
             )}
@@ -625,39 +580,32 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
         <hr style={dividerStyle} />
 
         <div style={fieldStyle}>
-          <label style={labelStyle}>VAD Type</label>
-          <select
-            style={inputStyle}
+          <Label weight="semibold">VAD Type</Label>
+          <Select
             value={settings.vadType}
-            onChange={(e) => onUpdate({ vadType: e.target.value as any })}
+            onChange={(_e, data) => onUpdate({ vadType: data.value as any })}
           >
             <option value="azure_semantic">Azure Semantic VAD</option>
             <option value="azure_semantic_en">Azure Semantic VAD (English)</option>
             <option value="azure_semantic_multilingual">Azure Semantic VAD (Multilingual)</option>
             <option value="server">Server VAD</option>
-          </select>
+          </Select>
         </div>
 
         <div style={checkboxRowStyle}>
-          <label style={checkboxLabelStyle}>
-            <input
-              type="checkbox"
-              checked={settings.noiseReduction}
-              onChange={(e) => onUpdate({ noiseReduction: e.target.checked })}
-            />
-            Noise Reduction
-          </label>
+          <Checkbox
+            checked={settings.noiseReduction}
+            onChange={(_e, data) => onUpdate({ noiseReduction: !!data.checked })}
+            label="Noise Reduction"
+          />
         </div>
 
         <div style={checkboxRowStyle}>
-          <label style={checkboxLabelStyle}>
-            <input
-              type="checkbox"
-              checked={settings.echoCancellation}
-              onChange={(e) => onUpdate({ echoCancellation: e.target.checked })}
-            />
-            Echo Cancellation
-          </label>
+          <Checkbox
+            checked={settings.echoCancellation}
+            onChange={(_e, data) => onUpdate({ echoCancellation: !!data.checked })}
+            label="Echo Cancellation"
+          />
         </div>
       </div>
     </>
@@ -693,85 +641,18 @@ const headerStyle: React.CSSProperties = {
   marginBottom: '24px',
 };
 
-const titleStyle: React.CSSProperties = {
-  fontSize: '1.3rem',
-  fontWeight: 700,
-  color: 'var(--fg-1)',
-  margin: 0,
-};
-
-const closeBtnStyle: React.CSSProperties = {
-  background: 'none',
-  border: 'none',
-  cursor: 'pointer',
-  padding: '4px',
-  display: 'flex',
-  alignItems: 'center',
-};
-
 const fieldStyle: React.CSSProperties = {
   marginBottom: '16px',
-};
-
-const labelStyle: React.CSSProperties = {
-  display: 'block',
-  fontSize: '0.85rem',
-  color: 'var(--fg-3)',
-  marginBottom: '6px',
-  fontWeight: 500,
-};
-
-const inputStyle: React.CSSProperties = {
-  width: '100%',
-  padding: '10px 12px',
-  borderRadius: '8px',
-  border: '1px solid var(--border-subtle)',
-  background: 'var(--surface)',
-  color: 'var(--fg-1)',
-  fontSize: '0.9rem',
-  outline: 'none',
-  boxSizing: 'border-box',
-};
-
-const textareaStyle: React.CSSProperties = {
-  ...inputStyle,
-  resize: 'vertical',
-  fontFamily: 'inherit',
-};
-
-const rangeStyle: React.CSSProperties = {
-  width: '100%',
-  accentColor: 'var(--brand-blue)',
+  display: 'flex',
+  flexDirection: 'column',
+  gap: '4px',
 };
 
 const segmentedStyle: React.CSSProperties = {
   display: 'flex',
-  gap: '0',
+  gap: '4px',
   borderRadius: '8px',
   overflow: 'hidden',
-  border: '1px solid var(--border-subtle)',
-};
-
-const segBtnStyle: React.CSSProperties = {
-  flex: 1,
-  padding: '8px 16px',
-  border: 'none',
-  background: 'var(--surface)',
-  color: 'var(--fg-3)',
-  cursor: 'pointer',
-  fontSize: '0.9rem',
-  fontWeight: 500,
-  transition: 'background 0.2s, color 0.2s',
-};
-
-const segActiveBtnStyle: React.CSSProperties = {
-  background: 'var(--voice-bg-subtle)',
-  color: 'var(--fg-1)',
-};
-
-const segActiveBlueStyle: React.CSSProperties = {
-  background: 'var(--brand-blue-bg)',
-  color: 'var(--fg-1)',
 };
 
 const dividerStyle: React.CSSProperties = {
@@ -784,18 +665,9 @@ const checkboxRowStyle: React.CSSProperties = {
   marginBottom: '12px',
 };
 
-const checkboxLabelStyle: React.CSSProperties = {
-  display: 'flex',
-  alignItems: 'center',
-  gap: '8px',
-  fontSize: '0.9rem',
-  color: 'var(--fg-1)',
-  cursor: 'pointer',
-};
-
 const optionalBadgeStyle: React.CSSProperties = {
-  fontSize: '0.7rem',
-  color: 'var(--fg-3)',
+  fontSize: '12px',
+  color: 'var(--fg-2)',
   border: '1px solid var(--border)',
   borderRadius: '4px',
   padding: '1px 5px',

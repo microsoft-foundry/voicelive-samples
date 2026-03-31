@@ -3,6 +3,8 @@ package com.azure.voicelive.sample;
 import java.io.IOException;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -26,6 +28,12 @@ public class VoiceLiveWebSocketHandler extends TextWebSocketHandler {
     private final ConcurrentHashMap<String, VoiceLiveHandler> handlers = new ConcurrentHashMap<>();
     private final Object credential;
     private final String endpoint;
+    // SDK calls (.block()) must not run on the WebSocket I/O thread
+    private final ExecutorService sdkExecutor = Executors.newCachedThreadPool(r -> {
+        Thread t = new Thread(r, "voicelive-sdk");
+        t.setDaemon(true);
+        return t;
+    });
 
     public VoiceLiveWebSocketHandler(Object credential, String endpoint) {
         this.credential = credential;
@@ -35,6 +43,9 @@ public class VoiceLiveWebSocketHandler extends TextWebSocketHandler {
     @Override
     public void afterConnectionEstablished(WebSocketSession session) {
         String clientId = extractClientId(session);
+        // Allow large messages — audio chunks are base64-encoded and can be 100KB+
+        session.setTextMessageSizeLimit(512 * 1024);
+        session.setBinaryMessageSizeLimit(512 * 1024);
         logger.info("Client {} connected", clientId);
     }
 
@@ -51,6 +62,7 @@ public class VoiceLiveWebSocketHandler extends TextWebSocketHandler {
                 case "stop_session" -> handleStopSession(clientId, session);
                 case "audio_chunk" -> handleAudioChunk(clientId, msg);
                 case "interrupt" -> handleInterrupt(clientId);
+                case "send_text" -> handleSendText(clientId, msg);
                 default -> logger.warn("Unknown message type from {}: {}", clientId, type);
             }
         } catch (Exception e) {
@@ -71,6 +83,13 @@ public class VoiceLiveWebSocketHandler extends TextWebSocketHandler {
         String clientId = extractClientId(session);
         logger.error("WebSocket transport error for {}: {}", clientId, exception.getMessage());
         cleanupClient(clientId);
+        try {
+            if (session.isOpen()) {
+                session.close(CloseStatus.SERVER_ERROR);
+            }
+        } catch (IOException e) {
+            logger.debug("Error closing WebSocket after transport error for {}: {}", clientId, e.getMessage());
+        }
     }
 
     /**
@@ -81,6 +100,7 @@ public class VoiceLiveWebSocketHandler extends TextWebSocketHandler {
             cleanupClient(clientId);
         }
         handlers.clear();
+        sdkExecutor.shutdownNow();
     }
 
     // ------------------------------------------------------------------
@@ -127,6 +147,14 @@ public class VoiceLiveWebSocketHandler extends TextWebSocketHandler {
             handler.stop();
         }
         sendJson(wsSession, Map.of("type", "session_stopped"));
+        // Close the WebSocket with a proper close frame so clients get a clean shutdown
+        try {
+            if (wsSession.isOpen()) {
+                wsSession.close(CloseStatus.NORMAL);
+            }
+        } catch (IOException e) {
+            logger.debug("Error closing WebSocket for {}: {}", clientId, e.getMessage());
+        }
         logger.info("Session stopped for {}", clientId);
     }
 
@@ -135,7 +163,7 @@ public class VoiceLiveWebSocketHandler extends TextWebSocketHandler {
         if (handler != null) {
             String data = (String) msg.get("data");
             if (data != null) {
-                handler.sendAudio(data);
+                sdkExecutor.execute(() -> handler.sendAudio(data));
             }
         }
     }
@@ -143,7 +171,17 @@ public class VoiceLiveWebSocketHandler extends TextWebSocketHandler {
     private void handleInterrupt(String clientId) {
         VoiceLiveHandler handler = handlers.get(clientId);
         if (handler != null) {
-            handler.interrupt();
+            sdkExecutor.execute(handler::interrupt);
+        }
+    }
+
+    private void handleSendText(String clientId, Map<String, Object> msg) {
+        VoiceLiveHandler handler = handlers.get(clientId);
+        if (handler != null) {
+            String text = (String) msg.get("text");
+            if (text != null) {
+                sdkExecutor.execute(() -> handler.sendText(text));
+            }
         }
     }
 
@@ -197,7 +235,9 @@ public class VoiceLiveWebSocketHandler extends TextWebSocketHandler {
         String path = session.getUri() != null ? session.getUri().getPath() : "";
         // Path is /ws/{clientId}
         int lastSlash = path.lastIndexOf('/');
-        return lastSlash >= 0 ? path.substring(lastSlash + 1) : "unknown";
+        String raw = lastSlash >= 0 ? path.substring(lastSlash + 1) : "unknown";
+        // Allowlist sanitization — only permit safe characters to prevent log injection
+        return raw.replaceAll("[^a-zA-Z0-9\\-_.]", "");
     }
 
     private void cleanupClient(String clientId) {
@@ -208,14 +248,15 @@ public class VoiceLiveWebSocketHandler extends TextWebSocketHandler {
     }
 
     private void sendJson(WebSocketSession session, Map<String, Object> msg) {
-        if (session.isOpen()) {
-            try {
-                synchronized (session) {
+        try {
+            synchronized (session) {
+                if (session.isOpen()) {
                     session.sendMessage(new TextMessage(mapper.writeValueAsString(msg)));
                 }
-            } catch (IOException e) {
-                logger.error("Failed to send message: {}", e.getMessage());
             }
+        } catch (IOException e) {
+            // Expected during session teardown — don't log at error level
+            logger.debug("Failed to send message: {}", e.getMessage());
         }
     }
 

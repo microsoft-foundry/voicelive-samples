@@ -1,4 +1,6 @@
 import React, { useEffect } from 'react';
+import { Button } from '@fluentui/react-components';
+import { DismissRegular } from '@fluentui/react-icons';
 
 interface ErrorBannerProps {
   message: string | null;
@@ -17,15 +19,20 @@ export const ErrorBanner: React.FC<ErrorBannerProps> = ({ message, onDismiss }) 
 
   return (
     <div style={bannerStyle}>
-      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--warning)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--warning)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
         <circle cx="12" cy="12" r="10" />
         <line x1="12" y1="8" x2="12" y2="12" />
         <line x1="12" y1="16" x2="12.01" y2="16" />
       </svg>
       <span style={textStyle}>{message}</span>
-      <button style={closeBtnStyle} onClick={onDismiss} aria-label="Dismiss error">
-        ✕
-      </button>
+      <Button
+        appearance="subtle"
+        size="small"
+        icon={<DismissRegular />}
+        onClick={onDismiss}
+        aria-label="Dismiss error"
+        style={{ color: 'rgba(255, 255, 255, 0.7)', flexShrink: 0 }}
+      />
     </div>
   );
 };
@@ -37,11 +44,11 @@ const bannerStyle: React.CSSProperties = {
   transform: 'translateX(-50%)',
   display: 'flex',
   alignItems: 'center',
-  gap: '10px',
+  gap: '8px',
   padding: '12px 20px',
   background: 'var(--error-bg)',
   backdropFilter: 'blur(8px)',
-  borderRadius: '10px',
+  borderRadius: '8px',
   border: '1px solid var(--border-subtle)',
   color: '#fff',
   maxWidth: '90vw',
@@ -51,17 +58,7 @@ const bannerStyle: React.CSSProperties = {
 };
 
 const textStyle: React.CSSProperties = {
-  fontSize: '0.9rem',
+  fontSize: '14px',
   lineHeight: 1.4,
   flex: 1,
-};
-
-const closeBtnStyle: React.CSSProperties = {
-  background: 'none',
-  border: 'none',
-  color: 'rgba(255, 255, 255, 0.7)',
-  cursor: 'pointer',
-  fontSize: '1rem',
-  padding: '2px 6px',
-  flexShrink: 0,
 };

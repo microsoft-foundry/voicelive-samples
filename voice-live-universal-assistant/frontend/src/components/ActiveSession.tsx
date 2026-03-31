@@ -1,4 +1,5 @@
 import React from 'react';
+import { Text } from '@fluentui/react-components';
 import type { SessionState, TranscriptEntry } from '../types';
 import { VoiceOrb } from './VoiceOrb';
 import { SessionControls } from './SessionControls';
@@ -34,18 +35,27 @@ export const ActiveSession: React.FC<ActiveSessionProps> = ({
 
   return (
     <div style={containerStyle}>
-      {/* Transcript takes available space above the orb, scrollable */}
-      {hasTranscripts && (
-        <div style={transcriptAreaStyle}>
-          <TranscriptOverlay transcripts={transcripts} />
+      {hasTranscripts ? (
+        /* CC active layout: transcript fills space, status text inline, no orb */
+        <>
+          <div style={transcriptAreaStyle}>
+            <TranscriptOverlay transcripts={transcripts} />
+          </div>
+          <div style={statusOnlyStyle}>
+            <Text weight="semibold" size={400} style={{ color: 'var(--colorNeutralForeground1, var(--fg-1))' }}>
+              {statusTextMap[state] || ''}
+            </Text>
+          </div>
+        </>
+      ) : (
+        /* Normal voice layout: orb centered with status text */
+        <div style={orbAreaStyle}>
+          <VoiceOrb state={state} />
+          <Text weight="semibold" size={400} style={{ color: 'var(--colorNeutralForeground1, var(--fg-1))' }}>
+            {statusTextMap[state] || ''}
+          </Text>
         </div>
       )}
-
-      {/* Orb area — shrinks when CC is showing transcripts */}
-      <div style={hasTranscripts ? orbAreaCompactStyle : orbAreaStyle}>
-        <VoiceOrb state={state} size={hasTranscripts ? 160 : 240} />
-        <p style={statusStyle}>{statusTextMap[state] || ''}</p>
-      </div>
 
       <SessionControls
         isCCEnabled={isCCEnabled}
@@ -58,13 +68,14 @@ export const ActiveSession: React.FC<ActiveSessionProps> = ({
   );
 };
 
+/* Reference: .panelRoot — centered, full height, gap spacingXL (20px) */
 const containerStyle: React.CSSProperties = {
   display: 'flex',
   flexDirection: 'column',
   alignItems: 'center',
-  height: '100vh',
+  height: '100%',
   boxSizing: 'border-box',
-  padding: '24px 24px 0 24px',
+  gap: '12px',
 };
 
 const transcriptAreaStyle: React.CSSProperties = {
@@ -72,31 +83,23 @@ const transcriptAreaStyle: React.CSSProperties = {
   width: '100%',
   display: 'flex',
   justifyContent: 'center',
-  minHeight: 0,       // allow flex shrink for overflow
-  overflow: 'hidden',  // children handle their own scroll
+  minHeight: 0,
+  overflow: 'hidden',
 };
 
 const orbAreaStyle: React.CSSProperties = {
   display: 'flex',
   flexDirection: 'column',
   alignItems: 'center',
-  gap: '24px',
+  gap: '20px',
   flex: 1,
   justifyContent: 'center',
 };
 
-const orbAreaCompactStyle: React.CSSProperties = {
+/* CC mode: just status text, minimal height */
+const statusOnlyStyle: React.CSSProperties = {
   display: 'flex',
-  flexDirection: 'column',
-  alignItems: 'center',
-  gap: '16px',
-  padding: '16px 0',
+  justifyContent: 'center',
+  padding: '4px 0',
   flexShrink: 0,
-};
-
-const statusStyle: React.CSSProperties = {
-  fontSize: '1.1rem',
-  color: 'var(--fg-3)',
-  margin: 0,
-  fontWeight: 500,
 };

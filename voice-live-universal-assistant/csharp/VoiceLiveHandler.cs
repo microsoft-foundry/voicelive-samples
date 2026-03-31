@@ -28,6 +28,7 @@ public class VoiceLiveHandler
     private Task? _eventTask;
     private volatile bool _running;
     private bool _greetingSent;
+    private string _serviceSessionId = "";
     private readonly StringBuilder _assistantTranscript = new();
 
     public VoiceLiveHandler(
@@ -73,6 +74,36 @@ public class VoiceLiveHandler
             catch (Exception ex)
             {
                 _logger.LogError("[{ClientId}] Error forwarding audio: {Error}", _clientId, ex.Message);
+            }
+        }
+    }
+
+    /// <summary>Send a text message via Voice Live (conversation.item.create + response.create).</summary>
+    public async Task SendTextAsync(string text)
+    {
+        var session = _session;
+        if (session != null && _running && !string.IsNullOrWhiteSpace(text))
+        {
+            try
+            {
+                await session.SendCommandAsync(BinaryData.FromObjectAsJson(new
+                {
+                    type = "conversation.item.create",
+                    item = new
+                    {
+                        type = "message",
+                        role = "user",
+                        content = new[] { new { type = "input_text", text = text.Trim() } },
+                    },
+                }));
+                await session.SendCommandAsync(BinaryData.FromObjectAsJson(new
+                {
+                    type = "response.create",
+                }));
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError("[{ClientId}] Error sending text: {Error}", _clientId, ex.Message);
             }
         }
     }
@@ -386,11 +417,25 @@ public class VoiceLiveHandler
     {
         switch (serverEvent)
         {
+            // -- Session created (carries service session ID) -----------------
+            case SessionUpdateSessionCreated created:
+                var createdSession = created.Session;
+                _serviceSessionId = createdSession?.Id ?? "";
+                _logger.LogInformation("[{ClientId}] SESSION_CREATED — session_id: {SessionId}", _clientId, _serviceSessionId);
+                break;
+
             // -- Session ready ------------------------------------------------
-            case SessionUpdateSessionUpdated:
+            case SessionUpdateSessionUpdated updated:
+                // Pick up session ID if not captured from SESSION_CREATED
+                if (string.IsNullOrEmpty(_serviceSessionId))
+                {
+                    _serviceSessionId = updated.Session?.Id ?? "";
+                }
+
                 await _sendMessage(new Dictionary<string, object>
                 {
                     ["type"] = "session_started",
+                    ["session_id"] = !string.IsNullOrEmpty(_serviceSessionId) ? _serviceSessionId : _clientId,
                     ["config"] = new Dictionary<string, object>
                     {
                         ["mode"] = _config.Mode,

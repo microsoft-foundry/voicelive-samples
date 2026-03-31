@@ -195,6 +195,9 @@ async function handleMessage(clientId, message, ws) {
   } else if (msgType === "audio_chunk") {
     const handler = _handlers.get(clientId);
     if (handler) await handler.sendAudio(message.data || "");
+  } else if (msgType === "send_text") {
+    const handler = _handlers.get(clientId);
+    if (handler) await handler.sendText(message.text || "");
   } else if (msgType === "interrupt") {
     const handler = _handlers.get(clientId);
     if (handler) await handler.interrupt();

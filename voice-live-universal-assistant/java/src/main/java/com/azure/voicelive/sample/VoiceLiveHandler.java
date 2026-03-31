@@ -42,8 +42,11 @@ import com.azure.ai.voicelive.models.StaticInterimResponseConfig;
 import com.azure.ai.voicelive.models.SessionUpdateErrorDetails;
 import com.azure.ai.voicelive.models.SessionUpdateResponseAudioDelta;
 import com.azure.ai.voicelive.models.SessionUpdateResponseAudioTranscriptDelta;
+import com.azure.ai.voicelive.models.SessionUpdateSessionCreated;
+import com.azure.ai.voicelive.models.SessionUpdateSessionUpdated;
 import com.azure.ai.voicelive.models.SystemMessageItem;
 import com.azure.ai.voicelive.models.TurnDetection;
+import com.azure.ai.voicelive.models.UserMessageItem;
 import com.azure.ai.voicelive.models.VoiceLiveSessionOptions;
 import com.azure.core.util.BinaryData;
 
@@ -73,6 +76,7 @@ public class VoiceLiveHandler {
     private volatile boolean running = false;
     private volatile boolean greetingSent = false;
     private final StringBuilder assistantTranscript = new StringBuilder();
+    private volatile String serviceSessionId = "";
 
     public VoiceLiveHandler(String clientId, String endpoint, Object credential,
                             Consumer<Map<String, Object>> sendMessage, SessionConfig config) {
@@ -171,6 +175,22 @@ public class VoiceLiveHandler {
                 session.sendInputAudio(audioBytes).block();
             } catch (Exception e) {
                 logger.error("[{}] Error forwarding audio: {}", clientId, e.getMessage());
+            }
+        }
+    }
+
+    /**
+     * Send a text message via Voice Live (conversation.item.create + response.create).
+     */
+    public void sendText(String text) {
+        if (session != null && running && text != null && !text.trim().isEmpty()) {
+            try {
+                UserMessageItem item = new UserMessageItem(
+                        List.of(new InputTextContentPart(text.trim())));
+                session.addItem(item).block();
+                session.startResponse().block();
+            } catch (Exception e) {
+                logger.error("[{}] Error sending text: {}", clientId, e.getMessage());
             }
         }
     }
@@ -284,7 +304,8 @@ public class VoiceLiveHandler {
                 StaticInterimResponseConfig staticConfig = new StaticInterimResponseConfig();
                 staticConfig.setTriggers(triggers);
                 if (config.getInterimStaticTexts() != null && !config.getInterimStaticTexts().isBlank()) {
-                    staticConfig.setTexts(java.util.List.of(config.getInterimStaticTexts().split("\\|")));
+                    staticConfig.setTexts(java.util.Arrays.stream(config.getInterimStaticTexts().split("\\n"))
+                            .map(String::trim).filter(s -> !s.isEmpty()).toList());
                 }
                 options.setInterimResponse(BinaryData.fromObject(staticConfig));
             } else {
@@ -372,7 +393,19 @@ public class VoiceLiveHandler {
         try {
             ServerEventType type = event.getType();
 
-            if (ServerEventType.SESSION_UPDATED.equals(type)) {
+            if (ServerEventType.SESSION_CREATED.equals(type)) {
+                // Capture service session ID
+                if (event instanceof SessionUpdateSessionCreated created) {
+                    var session = created.getSession();
+                    serviceSessionId = session != null && session.getId() != null ? session.getId() : "";
+                }
+                logger.info("[{}] SESSION_CREATED — session_id: {}", clientId, serviceSessionId);
+            } else if (ServerEventType.SESSION_UPDATED.equals(type)) {
+                // Pick up session ID if not captured from SESSION_CREATED
+                if (serviceSessionId.isEmpty() && event instanceof SessionUpdateSessionUpdated updated) {
+                    var session = updated.getSession();
+                    serviceSessionId = session != null && session.getId() != null ? session.getId() : "";
+                }
                 handleSessionUpdated();
             } else if (ServerEventType.INPUT_AUDIO_BUFFER_SPEECH_STARTED.equals(type)) {
                 handleSpeechStarted();
@@ -408,6 +441,7 @@ public class VoiceLiveHandler {
 
         Map<String, Object> msg = new HashMap<>();
         msg.put("type", "session_started");
+        msg.put("session_id", !serviceSessionId.isEmpty() ? serviceSessionId : clientId);
         msg.put("config", configMap);
         sendMessage.accept(msg);
 

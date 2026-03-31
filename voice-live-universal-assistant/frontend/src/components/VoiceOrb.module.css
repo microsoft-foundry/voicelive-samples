@@ -1,119 +1,120 @@
-.orb-container {
+.pulseContainer {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+}
+
+.connected {
+  min-height: clamp(250px, 40vh, 550px);
+}
+
+.disconnected {
+  justify-content: flex-end;
+}
+
+/* ─── Reference: .circleWrapper — sizes the area for the ring system ─── */
+.circleWrapper {
   position: relative;
   display: flex;
   align-items: center;
   justify-content: center;
+  width: 244px;
+  height: 244px;
 }
 
-.orb-ring {
+.circleWrapperIdle {
+  width: 120px;
+  height: 120px;
+}
+
+/* ─── Reference: .circleStack — positions concentric rings ─── */
+.circleStack {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 244px;
+  height: 244px;
+}
+
+/* ─── Concentric rings: shared base ─── */
+.circleOuter,
+.circleMid,
+.circleInner {
   position: absolute;
-  border-radius: 50%;
-  background: radial-gradient(circle, var(--voice-primary) 0%, var(--voice-secondary) 60%, transparent 70%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--borderRadiusCircular, 9999px);
+  background: var(--colorBrandBackground, var(--voice-primary));
+  transition: transform 400ms ease, opacity 400ms ease;
 }
 
-/* Core orb (innermost) */
-.orb-core {
-  z-index: 3;
-  opacity: 0.95;
+/* Reference: .circleOuter — 244px, opacity 0.20 */
+.circleOuter {
+  width: 244px;
+  height: 244px;
+  opacity: 0.20;
 }
 
-.orb-ring-mid {
+/* Reference: .circleMid — 182px, opacity 0.30 */
+.circleMid {
+  width: 182px;
+  height: 182px;
+  opacity: 0.30;
+}
+
+/* Reference: .circleInner — 138px, opacity 0.33 */
+.circleInner {
+  width: 138px;
+  height: 138px;
+  opacity: 0.33;
+}
+
+/* ─── Reference: .circleBase (active core) — 160px, opacity 0.33 ─── */
+.circleBase {
+  position: relative;
   z-index: 2;
-  opacity: 0.3;
+  width: 160px;
+  height: 160px;
+  border-radius: var(--borderRadiusCircular, 9999px);
+  opacity: 0.33;
+  background: var(--colorBrandBackground, var(--voice-primary));
 }
 
-.orb-ring-outer {
-  z-index: 1;
-  opacity: 0.15;
+/* ─── Reference: .circleBaseIdle — 120px, solid, no opacity ─── */
+.circleBaseIdle {
+  width: 120px;
+  height: 120px;
+  border-radius: var(--borderRadiusCircular, 9999px);
+  background: var(--colorBrandBackground, var(--voice-primary));
 }
 
-/* Idle: gentle slow pulse */
-.orb-idle .orb-core {
-  animation: idlePulse 3s ease-in-out infinite;
-}
-.orb-idle .orb-ring-mid {
-  animation: idlePulse 3s ease-in-out infinite 0.3s;
-}
-.orb-idle .orb-ring-outer {
-  animation: idlePulse 3s ease-in-out infinite 0.6s;
+/* ─── Reference: .stackListening — rings at scale(1), static ─── */
+.stackListening .circleOuter { transform: scale(1); }
+.stackListening .circleMid { transform: scale(1); }
+.stackListening .circleInner { transform: scale(1); }
+
+/* ─── Reference: .stackTalking — reduced ring opacities ─── */
+.stackTalking .circleOuter { opacity: calc(0.20 * 0.9); }
+.stackTalking .circleMid { opacity: calc(0.30 * 0.87); }
+.stackTalking .circleInner { opacity: 0.5; }
+
+/* ─── Reference: .pulseListening — subtle core breathing ─── */
+.pulseListening {
+  animation: circle-pulse 1.8s ease-in-out infinite;
 }
 
-@keyframes idlePulse {
-  0%, 100% { transform: scale(1); opacity: var(--ring-opacity, 0.3); }
-  50% { transform: scale(1.05); opacity: calc(var(--ring-opacity, 0.3) + 0.1); }
+/* ─── Reference: .captionsActiveHiddenCircle — hide when CC active ─── */
+.captionsActiveHidden .circleWrapper {
+  display: none;
 }
 
-/* Listening: subtle breathing */
-.orb-listening .orb-core {
-  animation: listenPulse 2s ease-in-out infinite;
-}
-.orb-listening .orb-ring-mid {
-  animation: listenPulse 2s ease-in-out infinite 0.2s;
-}
-.orb-listening .orb-ring-outer {
-  animation: listenPulse 2s ease-in-out infinite 0.4s;
-}
-
-@keyframes listenPulse {
-  0%, 100% { transform: scale(1); opacity: var(--ring-opacity, 0.3); }
-  50% { transform: scale(1.08); opacity: calc(var(--ring-opacity, 0.3) + 0.15); }
-}
-
-/* Speaking: expanding rings radiating outward */
-.orb-speaking .orb-core {
-  animation: speakCore 1.2s ease-in-out infinite;
-}
-.orb-speaking .orb-ring-mid {
-  animation: speakExpand 1.8s ease-out infinite;
-}
-.orb-speaking .orb-ring-outer {
-  animation: speakExpand 1.8s ease-out infinite 0.6s;
-}
-
-@keyframes speakCore {
-  0%, 100% { transform: scale(1); }
-  50% { transform: scale(1.06); }
-}
-
-@keyframes speakExpand {
-  0% { transform: scale(1); opacity: 0.4; }
-  100% { transform: scale(1.8); opacity: 0; }
-}
-
-/* Thinking: rotating gradient */
-.orb-thinking .orb-core {
-  animation: thinkRotate 2s linear infinite;
-  background: conic-gradient(from 0deg, var(--voice-secondary), var(--voice-primary), var(--voice-secondary));
-}
-.orb-thinking .orb-ring-mid {
-  animation: thinkPulse 1.5s ease-in-out infinite;
-}
-.orb-thinking .orb-ring-outer {
-  animation: thinkPulse 1.5s ease-in-out infinite 0.3s;
-}
-
-@keyframes thinkRotate {
-  from { transform: rotate(0deg); }
-  to { transform: rotate(360deg); }
-}
-
-@keyframes thinkPulse {
-  0%, 100% { transform: scale(1); opacity: 0.2; }
-  50% { transform: scale(1.1); opacity: 0.35; }
-}
-
-/* Connecting: pulsing fast */
-.orb-connecting .orb-core {
-  animation: connectPulse 0.8s ease-in-out infinite;
-}
-.orb-connecting .orb-ring-mid {
-  animation: connectPulse 0.8s ease-in-out infinite 0.15s;
-}
-.orb-connecting .orb-ring-outer {
-  animation: connectPulse 0.8s ease-in-out infinite 0.3s;
-}
-
-@keyframes connectPulse {
-  0%, 100% { transform: scale(1); opacity: 0.2; }
-  50% { transform: scale(1.12); opacity: 0.5; }
+@keyframes circle-pulse {
+  0% { transform: scale(1); }
+  50% { transform: scale(1.04); }
+  100% { transform: scale(1); }
 }

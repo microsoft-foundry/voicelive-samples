@@ -1,47 +1,59 @@
 import React from 'react';
 import { AIFoundryLogo } from './AIFoundryLogo';
 
-export const BuiltWithBadge: React.FC = () => (
+interface BuiltWithBadgeProps {
+  className?: string;
+}
+
+export const BuiltWithBadge: React.FC<BuiltWithBadgeProps> = ({ className }) => (
   <a
     href="https://azure.microsoft.com/en-us/products/ai-foundry"
     target="_blank"
     rel="noopener noreferrer"
+    className={className}
     style={badgeStyle}
-    aria-label="Built with Azure AI Foundry"
+    aria-label="Built with Microsoft Foundry"
   >
     <span style={logoStyle}>
       <AIFoundryLogo />
     </span>
-    <span style={textStyle}>Build & deploy AI agents with</span>
-    <span style={brandStyle}>Azure AI Foundry</span>
+    <span style={textBlockStyle}>
+      <span style={textLine1Style}>Build & deploy AI agents with</span>
+      <span style={textLine2Style}>Microsoft Foundry →</span>
+    </span>
   </a>
 );
 
 const badgeStyle: React.CSSProperties = {
-  position: 'fixed',
-  bottom: '16px',
-  left: '20px',
   display: 'flex',
   alignItems: 'center',
-  gap: '6px',
+  gap: '8px',
   textDecoration: 'none',
-  color: 'var(--fg-3)',
-  fontSize: '0.8rem',
-  zIndex: 5,
-  transition: 'opacity 0.2s',
-  opacity: 0.8,
+  color: 'var(--fg-2)',
+  opacity: 0.9,
 };
 
 const logoStyle: React.CSSProperties = {
   display: 'flex',
   alignItems: 'center',
-  color: 'var(--brand-blue)',
+  color: 'var(--fg-1)',
+  fontSize: '22px',
 };
 
-const textStyle: React.CSSProperties = {
+const textBlockStyle: React.CSSProperties = {
+  display: 'flex',
+  flexDirection: 'column',
+  lineHeight: 1.3,
+};
+
+const textLine1Style: React.CSSProperties = {
+  fontSize: '12px',
   fontWeight: 400,
+  color: 'var(--fg-2)',
 };
 
-const brandStyle: React.CSSProperties = {
-  fontWeight: 700,
+const textLine2Style: React.CSSProperties = {
+  fontSize: '14px',
+  fontWeight: 600,
+  color: 'var(--fg-1)',
 };
