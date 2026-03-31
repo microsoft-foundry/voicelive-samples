@@ -279,7 +279,7 @@ class MCPVoiceAssistant:
         self._mcp_call_in_progress = 0  # Count of active MCP tool calls
         self._handled_mcp_completions: set = set()  # Deduplicate MCP completion events
         self._needs_response_create = False  # Retry response.create at next RESPONSE_DONE
-        self._approval_tools_completed_this_turn: set = set()  # Approval-required tools completed this turn
+        self._approval_call_count: dict[str, int] = {}  # Per-server call count this turn
         self._mcp_item_to_server: dict = {}  # Map MCP item IDs to server_label/function_name
         self._approval_servers: set = set()  # Server labels that require approval
 
@@ -433,7 +433,7 @@ class MCPVoiceAssistant:
             logger.info("User started speaking - stopping playback")
             print("🎤 Listening...")
             ap.skip_pending_audio()
-            self._approval_tools_completed_this_turn.clear()
+            self._approval_call_count.clear()
 
             if self._active_response and not self._response_api_done:
                 try:
@@ -616,11 +616,22 @@ class MCPVoiceAssistant:
 
     async def _send_approval_voice_prompt(self, pending: dict, connection):
         """Inject a system message asking the model to verbally request permission."""
-        prompt = (
-            f'I need your permission to use the "{pending["function_name"]}" tool '
-            f'from the "{pending["server_label"]}" service. '
-            f"Should I go ahead? Just say yes or no."
-        )
+        server = pending["server_label"]
+        call_count = self._approval_call_count.get(server, 0)
+        self._approval_call_count[server] = call_count + 1
+
+        if call_count == 0:
+            prompt = (
+                f'I need your permission to use the "{pending["function_name"]}" tool '
+                f'from the "{server}" service. '
+                f"Should I go ahead? Just say yes or no."
+            )
+        else:
+            prompt = (
+                f"I need to do one more search to get more complete information. "
+                f"Should I continue? Just say yes or no."
+            )
+
         try:
             await connection.conversation.item.create(
                 item=MessageItem(
@@ -696,19 +707,8 @@ class MCPVoiceAssistant:
         logger.info("MCP call completed for %s", mcp_call_completed_event.item_id)
         print("✅ MCP tool call completed successfully")
 
-        item_id = mcp_call_completed_event.item_id
-
-        # Track which tool completed to avoid repeated approval prompts
-        # for the same tool in voice UX. Only guard approval-required servers —
-        # servers with require_approval="never" are free to make multiple calls.
-        tool_key = self._mcp_item_to_server.pop(item_id, "")
-        server_label = tool_key.split("/")[0] if "/" in tool_key else ""
-
-        if server_label in self._approval_servers:
-            if tool_key in self._approval_tools_completed_this_turn:
-                logger.info("Skipping response.create — %s already completed this turn", tool_key)
-                return
-            self._approval_tools_completed_this_turn.add(tool_key)
+        # Clean up item mapping
+        self._mcp_item_to_server.pop(mcp_call_completed_event.item_id, None)
 
         # Kick the model to incorporate and speak the MCP output.
         # If a response is already active, defer to RESPONSE_DONE.
