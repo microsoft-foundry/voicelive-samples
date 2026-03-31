@@ -433,7 +433,10 @@ class MCPVoiceAssistant:
             logger.info("User started speaking - stopping playback")
             print("🎤 Listening...")
             ap.skip_pending_audio()
-            self._approval_call_count.clear()
+            # Only reset approval call counter if no approval is pending
+            # (preserves counter for multi-search flows within one topic)
+            if self._pending_approval is None:
+                self._approval_call_count.clear()
 
             if self._active_response and not self._response_api_done:
                 try:
@@ -669,6 +672,8 @@ class MCPVoiceAssistant:
 
         # Clear the pending state before sending the response
         self._pending_approval = None
+        if not approved:
+            self._approval_call_count.clear()  # Topic is over
 
         approval_response_item = MCPApprovalResponseRequestItem(
             approval_request_id=pending["approval_id"], approve=approved
