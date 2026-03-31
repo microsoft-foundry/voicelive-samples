@@ -627,14 +627,15 @@ class MCPVoiceAssistant:
 
         if call_count == 0:
             prompt = (
-                f'I need your permission to use the "{pending["function_name"]}" tool '
-                f'from the "{server}" service. '
-                f"Should I go ahead? Just say yes or no."
+                "You MUST ask the user for explicit permission before proceeding. "
+                f'Say exactly: "I\'d like to search the {server} service for information. '
+                f'Do you approve? Please say yes or no."'
             )
         else:
             prompt = (
-                f"I need to do one more search to get more complete information. "
-                f"Should I continue? Just say yes or no."
+                "You MUST ask the user for permission again. "
+                'Say exactly: "I need to do one more search to get complete information. '
+                'Should I continue? Please say yes or no."'
             )
 
         try:
@@ -841,7 +842,11 @@ def parse_arguments():
             "When a user asks a question, use the appropriate tool once to find information, "
             "then summarize the results conversationally. IMPORTANT: Never call the same tool "
             "more than once per user question. After receiving a tool result, always respond "
-            "to the user with what you found — do not search again.",
+            "to the user with what you found — do not search again. "
+            "Some tools require user approval before they can be used. When you receive a "
+            "system message asking you to request permission, you MUST clearly ask the user "
+            "for their explicit approval before proceeding. Always wait for the user to say "
+            "yes or no. Never skip the approval question or assume permission is granted.",
         ),
     )
     parser.add_argument(
