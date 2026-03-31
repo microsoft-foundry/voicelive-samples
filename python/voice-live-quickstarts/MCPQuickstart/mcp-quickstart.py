@@ -548,12 +548,12 @@ class MCPVoiceAssistant:
 
         elif event.type == ServerEventType.RESPONSE_MCP_CALL_COMPLETED:
             item_id = event.item_id
+            self._mcp_call_in_progress = max(0, self._mcp_call_in_progress - 1)
             if item_id in self._handled_mcp_completions:
                 logger.debug("Ignoring duplicate MCP completion for %s", item_id)
             else:
                 self._handled_mcp_completions.add(item_id)
                 logger.info("MCP call completed for %s", item_id)
-                self._mcp_call_in_progress = max(0, self._mcp_call_in_progress - 1)
                 await self._handle_mcp_call_completed(event, conn)
 
         elif event.type == ServerEventType.RESPONSE_MCP_CALL_FAILED:
