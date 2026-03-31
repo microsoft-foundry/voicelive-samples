@@ -654,9 +654,10 @@ class MCPVoiceAssistant:
         text = transcript.strip().lower()
 
         # Match "yes" or "no" as whole words (word boundaries prevent false
-        # positives from words like "yesterday" or "nobody")
+        # positives from words like "yesterday" or "nobody").
+        # Also accept "stop" and "cancel" as denial.
         approved = bool(re.search(r'\byes\b', text))
-        denied = bool(re.search(r'\bno\b', text))
+        denied = bool(re.search(r'\b(no|stop|cancel)\b', text))
 
         if not approved and not denied:
             # Ambiguous — ask again via the deferred prompt mechanism
@@ -753,9 +754,10 @@ class MCPVoiceAssistant:
         self._mcp_item_to_server[mcp_call_item.id] = f"{server_label}/{function_name}"
 
         # Announce the tool call to the user so they know something is
-        # happening while the MCP call runs. Skip if an approval prompt
-        # is pending (that flow handles its own voice messaging).
-        if self._pending_approval is None:
+        # happening while the MCP call runs. Skip for approval-required
+        # servers (the approval prompt handles communication) and skip
+        # if an approval is already pending.
+        if self._pending_approval is None and server_label not in self._approval_servers:
             try:
                 await connection.conversation.item.create(
                     item=MessageItem(
