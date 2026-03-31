@@ -1,0 +1,4 @@
+azure-ai-voicelive[aiohttp]
+pyaudio
+python-dotenv
+azure-identity

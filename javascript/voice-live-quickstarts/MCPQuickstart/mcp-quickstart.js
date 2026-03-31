@@ -1,0 +1,653 @@
+// Copyright (c) Microsoft Corporation. All rights reserved.
+// Licensed under the MIT License.
+
+import "dotenv/config";
+import { VoiceLiveClient } from "@azure/ai-voicelive";
+import { AzureKeyCredential } from "@azure/core-auth";
+import { DefaultAzureCredential } from "@azure/identity";
+import { spawn } from "node:child_process";
+import { createInterface } from "node:readline";
+
+function printUsage() {
+  console.log("Usage: node mcp-quickstart.js [options]");
+  console.log("");
+  console.log("Options:");
+  console.log("  --api-key <key>             VoiceLive API key");
+  console.log("  --endpoint <url>            VoiceLive endpoint URL");
+  console.log("  --model <name>              Model to use (default: gpt-realtime)");
+  console.log(
+    "  --voice <name>              Voice (default: en-US-Ava:DragonHDLatestNeural)",
+  );
+  console.log("  --instructions <text>       System instructions for the assistant");
+  console.log("  --audio-input-device <name> Explicit SoX input device name (Windows)");
+  console.log("  --use-token-credential      Use Azure credential instead of API key");
+  console.log("  --no-audio                  Connect and configure session without mic/speaker");
+  console.log("  -h, --help                  Show this help text");
+}
+
+function parseArguments(argv) {
+  const parsed = {
+    apiKey: process.env.AZURE_VOICELIVE_API_KEY,
+    endpoint: process.env.AZURE_VOICELIVE_ENDPOINT,
+    model: process.env.AZURE_VOICELIVE_MODEL ?? "gpt-realtime",
+    voice:
+      process.env.AZURE_VOICELIVE_VOICE ?? "en-US-Ava:DragonHDLatestNeural",
+    instructions:
+      process.env.AZURE_VOICELIVE_INSTRUCTIONS ??
+      "You are a helpful AI assistant with access to MCP tools. Use the tools to help answer user questions. Respond naturally and conversationally.",
+    audioInputDevice: process.env.AUDIO_INPUT_DEVICE,
+    useTokenCredential: false,
+    noAudio: false,
+    help: false,
+  };
+
+  for (let i = 0; i < argv.length; i++) {
+    const arg = argv[i];
+    switch (arg) {
+      case "--api-key":
+        parsed.apiKey = argv[++i];
+        break;
+      case "--endpoint":
+        parsed.endpoint = argv[++i];
+        break;
+      case "--model":
+        parsed.model = argv[++i];
+        break;
+      case "--voice":
+        parsed.voice = argv[++i];
+        break;
+      case "--instructions":
+        parsed.instructions = argv[++i];
+        break;
+      case "--audio-input-device":
+        parsed.audioInputDevice = argv[++i];
+        break;
+      case "--use-token-credential":
+        parsed.useTokenCredential = true;
+        break;
+      case "--no-audio":
+        parsed.noAudio = true;
+        break;
+      case "--help":
+      case "-h":
+        parsed.help = true;
+        break;
+      default:
+        if (arg?.startsWith("-")) {
+          throw new Error(`Unknown option: ${arg}`);
+        }
+        break;
+    }
+  }
+
+  return parsed;
+}
+
+function resolveVoiceConfig(voiceName) {
+  const looksLikeAzureVoice = voiceName.includes("-") || voiceName.includes(":");
+  if (looksLikeAzureVoice) {
+    return { type: "azure-standard", name: voiceName };
+  }
+  return { type: "openai", name: voiceName };
+}
+
+class AudioProcessor {
+  constructor(enableAudio = true, inputDevice = undefined) {
+    this._enableAudio = enableAudio;
+    this._inputDevice = inputDevice;
+    this._recorder = null;
+    this._soxProcess = null;
+    this._speaker = null;
+    this._skipSeq = 0;
+    this._nextSeq = 0;
+    this._recordModule = null;
+    this._speakerCtor = null;
+  }
+
+  async _ensureAudioModulesLoaded() {
+    if (!this._enableAudio) return;
+    if (this._recordModule && this._speakerCtor) return;
+
+    try {
+      const recordModule = await import("node-record-lpcm16");
+      const speakerModule = await import("speaker");
+      this._recordModule = recordModule.default;
+      this._speakerCtor = speakerModule.default;
+    } catch {
+      throw new Error(
+        "Audio dependencies are unavailable. Install optional packages (node-record-lpcm16, speaker) " +
+        "and required native build tools, or run with --no-audio for connectivity-only validation.",
+      );
+    }
+  }
+
+  async startCapture(session) {
+    if (!this._enableAudio) {
+      console.log("[audio] --no-audio enabled: microphone capture skipped");
+      return;
+    }
+    if (this._recorder || this._soxProcess) return;
+
+    if (this._inputDevice) {
+      console.log(`[audio] Using explicit input device: ${this._inputDevice}`);
+
+      const soxArgs = [
+        "-q", "-t", "waveaudio", this._inputDevice,
+        "-r", "24000", "-c", "1", "-e", "signed-integer", "-b", "16",
+        "-t", "raw", "-",
+      ];
+
+      this._soxProcess = spawn("sox", soxArgs, {
+        stdio: ["ignore", "pipe", "pipe"],
+      });
+
+      this._soxProcess.stdout.on("data", (chunk) => {
+        if (session.isConnected) {
+          session.sendAudio(new Uint8Array(chunk)).catch(() => {});
+        }
+      });
+
+      this._soxProcess.stderr.on("data", (data) => {
+        const msg = data.toString().trim();
+        if (msg) console.error(`[audio] sox stderr: ${msg}`);
+      });
+
+      this._soxProcess.on("error", (error) => {
+        console.error(`[audio] SoX process error: ${error?.message ?? error}`);
+      });
+
+      this._soxProcess.on("close", (code) => {
+        if (code !== 0) console.error(`[audio] SoX exited with code ${code}`);
+        this._soxProcess = null;
+      });
+
+      console.log("[audio] Microphone capture started");
+      return;
+    }
+
+    await this._ensureAudioModulesLoaded();
+
+    const recorderOptions = {
+      sampleRate: 24000,
+      channels: 1,
+      audioType: "raw",
+      recorder: "sox",
+      encoding: "signed-integer",
+      bitwidth: 16,
+    };
+
+    this._recorder = this._recordModule.record(recorderOptions);
+    const recorderStream = this._recorder.stream();
+
+    recorderStream.on("data", (chunk) => {
+      if (session.isConnected) {
+        session.sendAudio(new Uint8Array(chunk)).catch(() => {});
+      }
+    });
+
+    recorderStream.on("error", (error) => {
+      console.error(`[audio] Recorder stream error: ${error?.message ?? error}`);
+    });
+
+    console.log("[audio] Microphone capture started");
+  }
+
+  async startPlayback() {
+    if (!this._enableAudio) {
+      console.log("[audio] --no-audio enabled: speaker playback skipped");
+      return;
+    }
+    if (this._speaker) return;
+    await this._resetSpeaker();
+    console.log("[audio] Playback ready");
+  }
+
+  queueAudio(base64Delta) {
+    const seq = this._nextSeq++;
+    if (seq < this._skipSeq) return;
+    const chunk = Buffer.from(base64Delta, "base64");
+    if (this._speaker && !this._speaker.destroyed) {
+      this._speaker.write(chunk);
+    }
+  }
+
+  skipPendingAudio() {
+    if (!this._enableAudio) return;
+    this._skipSeq = this._nextSeq++;
+    this._resetSpeaker().catch(() => {});
+  }
+
+  shutdown() {
+    if (this._soxProcess) {
+      try { this._soxProcess.kill(); } catch { /* no-op */ }
+      this._soxProcess = null;
+    }
+    if (this._recorder) {
+      this._recorder.stop();
+      this._recorder = null;
+    }
+    if (this._speaker) {
+      this._speaker.end();
+      this._speaker = null;
+    }
+    console.log("[audio] Audio processor shut down");
+  }
+
+  async _resetSpeaker() {
+    await this._ensureAudioModulesLoaded();
+    if (this._speaker && !this._speaker.destroyed) {
+      try { this._speaker.end(); } catch { /* no-op */ }
+    }
+    this._speaker = new this._speakerCtor({
+      channels: 1,
+      bitDepth: 16,
+      sampleRate: 24000,
+      signed: true,
+    });
+    this._speaker.on("error", () => {});
+  }
+}
+
+// <define_mcp_servers>
+/**
+ * Define MCP servers that Voice Live can use during the session.
+ * Each server is an MCPTool object added to the session tools array.
+ */
+function defineMCPServers() {
+  return [
+    {
+      type: "mcp",
+      server_label: "deepwiki",
+      server_url: "https://mcp.deepwiki.com/mcp",
+      allowed_tools: ["read_wiki_structure", "ask_question"],
+      require_approval: "never",
+    },
+    {
+      type: "mcp",
+      server_label: "azure_doc",
+      server_url: "https://learn.microsoft.com/api/mcp",
+      require_approval: "always",
+    },
+  ];
+}
+// </define_mcp_servers>
+
+class MCPVoiceAssistant {
+  constructor(options) {
+    this.endpoint = options.endpoint;
+    this.credential = options.credential;
+    this.model = options.model;
+    this.voice = options.voice;
+    this.instructions = options.instructions;
+    this.audioInputDevice = options.audioInputDevice;
+    this.noAudio = options.noAudio;
+
+    this._session = null;
+    this._subscription = null;
+    this._audio = new AudioProcessor(!options.noAudio, options.audioInputDevice);
+    this._activeResponse = false;
+    this._responseApiDone = false;
+    this._rl = null;
+  }
+
+  // <configure_session>
+  /**
+   * Configure the session with MCP servers in the tools list.
+   */
+  async _setupSession() {
+    console.log("[session] Configuring session with MCP tools...");
+
+    const mcpServers = defineMCPServers();
+
+    await this._session.updateSession({
+      model: this.model,
+      modalities: ["text", "audio"],
+      instructions: this.instructions,
+      voice: resolveVoiceConfig(this.voice),
+      inputAudioFormat: "pcm16",
+      outputAudioFormat: "pcm16",
+      turnDetection: {
+        type: "server_vad",
+        threshold: 0.5,
+        prefixPaddingInMs: 300,
+        silenceDurationInMs: 500,
+      },
+      inputAudioEchoCancellation: { type: "server_echo_cancellation" },
+      inputAudioNoiseReduction: { type: "azure_deep_noise_suppression" },
+      inputAudioTranscription: { model: "azure-speech" },
+      tools: mcpServers,
+    });
+
+    console.log("[session] Session configuration with MCP tools sent");
+  }
+  // </configure_session>
+
+  // <handle_mcp_events>
+  /**
+   * Subscribe to session events, including MCP-specific events.
+   */
+  _subscribeToEvents(session) {
+    this._subscription = session.subscribe({
+      onSessionUpdated: async (event, context) => {
+        const s = event.session;
+        const model = s?.model;
+        const voice = s?.voice;
+        console.log(`[session] Session ready: ${context.sessionId}`);
+        console.log(
+          `  Model: ${typeof model === "string" ? model : model?.toString?.() ?? ""}`,
+        );
+        console.log(`  Voice: ${voice?.name ?? ""}`);
+      },
+
+      onConversationItemInputAudioTranscriptionCompleted: async (event) => {
+        const transcript = event.transcript ?? "";
+        console.log(`👤 You said:\t${transcript}`);
+      },
+
+      onResponseTextDone: async (event) => {
+        const text = event.text ?? "";
+        console.log(`🤖 Assistant text:\t${text}`);
+      },
+
+      onResponseAudioTranscriptDone: async (event) => {
+        const transcript = event.transcript ?? "";
+        console.log(`🤖 Assistant audio transcript:\t${transcript}`);
+      },
+
+      onInputAudioBufferSpeechStarted: async () => {
+        console.log("🎤 Listening...");
+        this._audio.skipPendingAudio();
+
+        if (this._activeResponse && !this._responseApiDone) {
+          try {
+            await session.sendEvent({ type: "response.cancel" });
+          } catch (err) {
+            const msg = err?.message ?? "";
+            if (!msg.toLowerCase().includes("no active response")) {
+              console.warn("[barge-in] Cancel failed:", msg);
+            }
+          }
+        }
+      },
+
+      onInputAudioBufferSpeechStopped: async () => {
+        console.log("🤔 Processing...");
+      },
+
+      onResponseCreated: async () => {
+        this._activeResponse = true;
+        this._responseApiDone = false;
+      },
+
+      onResponseAudioDelta: async (event) => {
+        if (event.delta) {
+          this._audio.queueAudio(event.delta);
+        }
+      },
+
+      onResponseAudioDone: async () => {
+        console.log("🎤 Ready for next input...");
+      },
+
+      onResponseDone: async () => {
+        console.log("✅ Response complete");
+        this._activeResponse = false;
+        this._responseApiDone = true;
+      },
+
+      onServerError: async (event) => {
+        const msg = event.error?.message ?? "";
+        if (msg.includes("Cancellation failed: no active response")) return;
+        console.error(`❌ VoiceLive error: ${msg}`);
+      },
+
+      // MCP-specific event handlers
+      onMcpListToolsCompleted: async (event) => {
+        const serverLabel = event.server_label ?? "unknown";
+        console.log(`🔧 MCP tools discovered for server "${serverLabel}"`);
+      },
+
+      onMcpListToolsFailed: async (event) => {
+        const serverLabel = event.server_label ?? "unknown";
+        console.error(`❌ MCP tool discovery failed for server "${serverLabel}"`);
+      },
+
+      onResponseMcpCallInProgress: async (event) => {
+        console.log("⏳ MCP tool call in progress...");
+      },
+
+      onResponseMcpCallArgumentsDone: async (event) => {
+        const name = event.name ?? "";
+        console.log(`📋 MCP tool call arguments ready: ${name}`);
+      },
+
+      onResponseMcpCallCompleted: async (event) => {
+        console.log("✅ MCP tool call completed");
+      },
+
+      onResponseMcpCallFailed: async (event) => {
+        console.error("❌ MCP tool call failed");
+      },
+
+      onConversationItemCreated: async (event) => {
+        const item = event.item;
+        if (item?.type === "mcp_approval_request") {
+          await this._handleApprovalRequest(item, session);
+        }
+      },
+    });
+  }
+  // </handle_mcp_events>
+
+  // <handle_approval>
+  /**
+   * Handle MCP approval requests by prompting the user in the console.
+   */
+  async _handleApprovalRequest(item, session) {
+    const approvalId = item.id ?? "unknown";
+    const serverLabel = item.server_label ?? "unknown";
+    const toolName = item.name ?? "unknown";
+
+    console.log();
+    console.log("🔐 MCP Approval Request");
+    console.log(`   Server: ${serverLabel}`);
+    console.log(`   Tool: ${toolName}`);
+    console.log(`   Approval ID: ${approvalId}`);
+
+    const approved = await this._promptForApproval();
+
+    console.log(`   Response: ${approved ? "Approved ✅" : "Denied ❌"}`);
+
+    try {
+      await session.sendEvent({
+        type: "conversation.item.create",
+        item: {
+          type: "mcp_approval_response",
+          approval_request_id: approvalId,
+          approve: approved,
+        },
+      });
+      await session.sendEvent({ type: "response.create" });
+    } catch (err) {
+      console.error("❌ Failed to send approval response:", err.message);
+    }
+  }
+
+  async _promptForApproval() {
+    if (!this._rl) {
+      this._rl = createInterface({
+        input: process.stdin,
+        output: process.stdout,
+      });
+    }
+
+    return new Promise((resolve) => {
+      const ask = () => {
+        this._rl.question("   Approve MCP call? (y/n): ", (answer) => {
+          const input = answer.trim().toLowerCase();
+          if (input === "y") { resolve(true); return; }
+          if (input === "n") { resolve(false); return; }
+          console.log("   Invalid input. Please type 'y' or 'n'.");
+          ask();
+        });
+      };
+      ask();
+    });
+  }
+  // </handle_approval>
+
+  async start() {
+    const client = new VoiceLiveClient(this.endpoint, this.credential, {
+      apiVersion: "2026-01-01-preview",
+    });
+    const session = client.createSession({ model: this.model });
+    this._session = session;
+
+    console.log(
+      `[init] Connecting to VoiceLive with model "${this.model}" at "${this.endpoint}" ...`,
+    );
+
+    this._subscribeToEvents(session);
+
+    await session.connect();
+    console.log("[init] Connected to VoiceLive session websocket");
+
+    await this._setupSession();
+
+    await this._audio.startPlayback();
+    await this._audio.startCapture(session);
+
+    console.log("\n" + "=".repeat(70));
+    console.log("🎤 VOICE ASSISTANT WITH MCP READY");
+    console.log("Try saying:");
+    console.log('  • "Can you summarize the GitHub repo azure-sdk-for-java?"');
+    console.log('  • "Search the Azure documentation for Voice Live API."');
+    console.log("You may need to approve some MCP tool calls in the console.");
+    console.log("Press Ctrl+C to exit");
+    console.log("=".repeat(70) + "\n");
+
+    if (this.noAudio) {
+      setTimeout(() => {
+        process.emit("SIGINT");
+      }, 6000);
+    }
+
+    await new Promise((resolve) => {
+      const onSignal = () => resolve();
+      process.once("SIGINT", onSignal);
+      process.once("SIGTERM", onSignal);
+
+      const poll = setInterval(() => {
+        if (!session.isConnected) {
+          clearInterval(poll);
+          resolve();
+        }
+      }, 500);
+    });
+
+    await this.shutdown();
+  }
+
+  async shutdown() {
+    if (this._rl) {
+      this._rl.close();
+      this._rl = null;
+    }
+
+    if (this._subscription) {
+      await this._subscription.close();
+      this._subscription = null;
+    }
+
+    if (this._session) {
+      try {
+        await this._session.disconnect();
+      } catch {
+        // ignore disconnect errors during shutdown
+      }
+
+      this._audio.shutdown();
+
+      try {
+        await this._session.dispose();
+      } catch {
+        // ignore dispose errors during shutdown
+      }
+
+      this._session = null;
+    }
+  }
+}
+
+async function main() {
+  let args;
+  try {
+    args = parseArguments(process.argv.slice(2));
+  } catch (err) {
+    console.error(`❌ ${err.message}`);
+    printUsage();
+    process.exit(1);
+  }
+
+  if (args.help) {
+    printUsage();
+    return;
+  }
+
+  if (!args.endpoint) {
+    console.error(
+      "❌ Missing endpoint. Set AZURE_VOICELIVE_ENDPOINT or pass --endpoint.",
+    );
+    process.exit(1);
+  }
+
+  if (!args.apiKey && !args.useTokenCredential) {
+    console.error("❌ No authentication provided.");
+    console.error(
+      "Provide --api-key / AZURE_VOICELIVE_API_KEY or use --use-token-credential.",
+    );
+    process.exit(1);
+  }
+
+  const credential = args.useTokenCredential
+    ? new DefaultAzureCredential()
+    : new AzureKeyCredential(args.apiKey);
+
+  console.log("Configuration:");
+  console.log(`  AZURE_VOICELIVE_ENDPOINT: ${args.endpoint}`);
+  console.log(`  AZURE_VOICELIVE_MODEL: ${args.model}`);
+  console.log(`  AZURE_VOICELIVE_VOICE: ${args.voice}`);
+  console.log(`  AUDIO_INPUT_DEVICE: ${args.audioInputDevice ?? "(not set)"}`);
+  console.log(`  No audio mode: ${args.noAudio ? "enabled" : "disabled"}`);
+  console.log(
+    `  Authentication: ${args.useTokenCredential ? "DefaultAzureCredential" : "API Key"}`,
+  );
+
+  const assistant = new MCPVoiceAssistant({
+    endpoint: args.endpoint,
+    credential,
+    model: args.model,
+    voice: args.voice,
+    instructions: args.instructions,
+    audioInputDevice: args.audioInputDevice,
+    noAudio: args.noAudio,
+  });
+
+  try {
+    await assistant.start();
+  } catch (err) {
+    if (err?.code === "ERR_USE_AFTER_CLOSE") return;
+    console.error("Fatal error:", err);
+    process.exit(1);
+  }
+}
+
+console.log("🎙️  Voice Assistant with MCP - Azure VoiceLive SDK");
+console.log("=".repeat(70));
+main().then(
+  () => console.log("\n👋 Voice assistant shut down. Goodbye!"),
+  (err) => {
+    console.error("Unhandled error:", err);
+    process.exit(1);
+  },
+);
