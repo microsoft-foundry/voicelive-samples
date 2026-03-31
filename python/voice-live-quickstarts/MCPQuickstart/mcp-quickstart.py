@@ -275,7 +275,6 @@ class MCPVoiceAssistant:
         self._response_api_done = False
         self._pending_approval: Optional[dict] = None  # Currently active approval request
         self._approval_queue: list[dict] = []  # Queued approvals waiting to be asked
-        self._awaiting_approval_voice = False  # True only after the model has spoken the approval prompt
         self._approval_prompt_needed = False  # True when we need to inject the prompt at next RESPONSE_DONE
         self._mcp_call_in_progress = 0  # Count of active MCP tool calls
         self._handled_mcp_completions: set = set()  # Deduplicate MCP completion events
@@ -436,15 +435,6 @@ class MCPVoiceAssistant:
             ap.skip_pending_audio()
             self._approval_tools_completed_this_turn.clear()
 
-            # If the model was still speaking the approval prompt (not yet
-            # awaiting voice), the user barged in before hearing the question.
-            # Re-queue the approval so it gets asked again after this turn.
-            if self._pending_approval is not None and not self._awaiting_approval_voice:
-                logger.info("Barge-in during approval prompt — re-queuing")
-                self._approval_queue.insert(0, self._pending_approval)
-                self._pending_approval = None
-                self._approval_prompt_needed = False
-
             if self._active_response and not self._response_api_done:
                 try:
                     await conn.response.cancel()
@@ -494,9 +484,6 @@ class MCPVoiceAssistant:
             if self._approval_prompt_needed and self._pending_approval is not None:
                 self._approval_prompt_needed = False
                 await self._send_approval_voice_prompt(self._pending_approval, conn)
-            # If an approval prompt was just spoken, the next user utterance is the answer
-            elif self._pending_approval is not None:
-                self._awaiting_approval_voice = True
             # If a response.create was deferred due to collision, retry now
             elif self._needs_response_create:
                 self._needs_response_create = False
@@ -511,9 +498,10 @@ class MCPVoiceAssistant:
             logger.info("User said: %s", transcript)
             print(f"👤 You said:\t{transcript}")
 
-            # Only interpret as an approval answer if the model has finished
-            # speaking the approval prompt and we are actively waiting
-            if self._pending_approval is not None and self._awaiting_approval_voice:
+            # Interpret as an approval answer if we have a pending approval —
+            # whether or not the prompt has finished speaking. This allows the
+            # user to barge in with "yes" without waiting for the full prompt.
+            if self._pending_approval is not None:
                 await self._resolve_voice_approval(transcript, conn)
         # </voice_approval_transcription>
 
@@ -620,7 +608,6 @@ class MCPVoiceAssistant:
             "server_label": server_label,
             "function_name": function_name,
         }
-        self._awaiting_approval_voice = False
 
         if not self._active_response:
             await self._send_approval_voice_prompt(self._pending_approval, connection)
@@ -662,7 +649,6 @@ class MCPVoiceAssistant:
         if not approved and not denied:
             # Ambiguous — ask again via the deferred prompt mechanism
             logger.info("Ambiguous approval response: %s", transcript)
-            self._awaiting_approval_voice = False
             self._approval_prompt_needed = True
             return
 
@@ -672,7 +658,6 @@ class MCPVoiceAssistant:
 
         # Clear the pending state before sending the response
         self._pending_approval = None
-        self._awaiting_approval_voice = False
 
         approval_response_item = MCPApprovalResponseRequestItem(
             approval_request_id=pending["approval_id"], approve=approved
@@ -694,7 +679,6 @@ class MCPVoiceAssistant:
             return
         next_approval = self._approval_queue.pop(0)
         self._pending_approval = next_approval
-        self._awaiting_approval_voice = False
 
         # Send immediately if no response is active, otherwise defer
         if not self._active_response:
@@ -763,8 +747,7 @@ class MCPVoiceAssistant:
                     item=MessageItem(
                         role="system",
                         content=[InputTextContentPart(
-                            text=f'I\'m now looking up information using the "{server_label}" service. '
-                                 f"Let the user know briefly that you're working on it."
+                            text="Briefly tell the user you're looking something up. One short sentence only."
                         )],
                     )
                 )
