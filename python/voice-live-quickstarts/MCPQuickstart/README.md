@@ -9,11 +9,59 @@ Like the Model Quickstart, this sample connects directly to a model (e.g. `gpt-r
 ## What Makes This Sample Unique
 
 - **MCP Server Integration**: Configure remote MCP servers as session tools via `MCPServer` model objects
-- **Voice-Based Approval**: Instead of blocking on a console prompt, the assistant verbally asks *"Should I go ahead?"* and interprets the user's spoken *yes* or *no*
-- **Context-Aware Repeat Approvals**: When the model needs additional searches, the prompt changes to *"I need one more search for complete info. Should I continue?"*
+- **Voice-Based Approval**: Instead of blocking on a console prompt, the assistant verbally asks *"Do you approve?"* and interprets the user's spoken *yes* or *no*
+- **Context-Aware Repeat Approvals**: When the model needs additional searches, the prompt changes to *"I need one more search. Should I continue?"*
 - **MCP Tool Announcements**: For auto-approved tools, the assistant says a brief acknowledgement while the call runs
 - **Barge-In Handling**: Interrupting during an MCP call triggers a *"Do you want to keep waiting or skip?"* inquiry
+- **MCP Stall Detection**: If a tool call takes >15 seconds, the assistant proactively tells the user it's still waiting
 - **Interim Response**: Automatically enabled for non-realtime model pipelines to bridge latency gaps
+
+## Voice UX Considerations for MCP Integration
+
+Integrating MCP servers into a voice assistant introduces unique UX challenges that don't exist in text-based or console-based MCP clients. This quickstart demonstrates patterns to address them. When building your own voice-enabled MCP application, consider the following:
+
+### Tool Approval Must Be Voice-Native
+
+The [SDK sample](https://github.com/Azure/azure-sdk-for-python/blob/main/sdk/voicelive/azure-ai-voicelive/samples/async_mcp_sample.py) uses blocking `input()` for approval — fine for a console demo, but it freezes the audio pipeline and breaks the voice experience. In a voice UX, approvals should be handled conversationally:
+
+- Inject a system message instructing the model to **verbally ask for permission**
+- Parse the user's spoken response for clear intent (`yes`, `no`, `stop`, `cancel`)
+- Allow **barge-in** — the user should be able to say "yes" without waiting for the full approval prompt to finish
+
+This quickstart uses word-boundary regex (`\byes\b`, `\b(no|stop|cancel)\b`) to avoid false positives from words like "yesterday" or "nobody".
+
+### System Instructions Must Teach the Model About Approval
+
+The model needs explicit instructions about the approval flow. Without them, it may paraphrase the permission request into a generic *"Let me look that up"* — skipping the actual question. This quickstart includes in the system prompt:
+
+> *"Some tools require user approval. When you receive a system message asking you to request permission, you MUST clearly ask the user for their explicit approval. Never skip the approval question or assume permission is granted."*
+
+The per-request system messages use `"Say exactly:"` phrasing to prevent the model from rewording the question.
+
+### Repeated Tool Calls Need Contextual Messaging
+
+MCP servers like Azure Docs may require multiple searches to gather complete information. Each search triggers a separate approval if `require_approval="always"`. Rather than asking the identical question each time, this quickstart tracks the call count per server:
+
+- **First call**: *"I'd like to search the azure_doc service. Do you approve?"*
+- **Subsequent calls**: *"I need one more search for complete information. Should I continue?"*
+
+The counter resets when results are fully delivered or the user denies a request.
+
+### Silence During Tool Calls Must Be Filled
+
+MCP tool calls can take 3–60+ seconds. Without feedback, the user thinks the assistant is broken. This quickstart uses three layers:
+
+1. **Tool announcements** (immediate): For auto-approved servers, the assistant says *"Let me look that up"* when the call starts. Skipped for approval-required servers since the approval prompt already communicates.
+2. **Interim response** (server-side, non-realtime models only): `LlmInterimResponseConfig` with `TOOL` and `LATENCY` triggers generates natural filler. Automatically skipped for `gpt-realtime` (not supported on the realtime pipeline).
+3. **Stall detection** (client-side, 15s timer): If the MCP call takes >15 seconds, the assistant proactively says *"Still waiting for results..."*. This is the **only** verbal feedback for slow calls on `gpt-realtime`.
+
+### Barge-In During MCP Calls
+
+Users will naturally try to interrupt or ask *"Are you still there?"* during long tool calls. Rather than ignoring this, the quickstart injects a system message asking the model to check: *"Do you want to keep waiting or skip?"* The model handles the conversation naturally from there.
+
+### Response Collision Handling
+
+MCP flows generate rapid event sequences where `response.create` calls can collide with active responses. This quickstart defers collisions to the next `RESPONSE_DONE` event via a flag, ensuring tool results and approval prompts are never silently dropped.
 
 ## Prerequisites
 
@@ -77,36 +125,6 @@ Like the Model Quickstart, this sample connects directly to a model (e.g. `gpt-r
 4. **Tool Announcements**: Auto-approved tool calls trigger a brief spoken acknowledgement
 5. **Voice Approval**: For `require_approval="always"` servers, a system message is injected prompting the model to ask verbally. The user's spoken response is parsed for *yes*/*no* using word-boundary regex
 6. **Result Delivery**: After MCP call completion, `response.create` kicks the model to speak the results
-
-## Design Decisions: MCP in Voice UX
-
-### Voice-Based Approval vs Console Prompts
-
-The [SDK sample](https://github.com/Azure/azure-sdk-for-python/blob/main/sdk/voicelive/azure-ai-voicelive/samples/async_mcp_sample.py) uses blocking `input()` for approval — fine for a console demo, but it freezes the audio pipeline. This quickstart injects system messages to make the model ask verbally, then parses the next transcription for `\byes\b` or `\b(no|stop|cancel)\b` using word-boundary regex. Users can barge in with "yes" without waiting for the full prompt to finish.
-
-### Context-Aware Repeat Approvals
-
-MCP servers may require multiple tool calls to gather complete information. Rather than blocking repeated calls, this quickstart tracks the call count per server per user turn:
-- **First call**: *"I need your permission to use X from Y. Should I go ahead?"*
-- **Subsequent calls**: *"I need one more search for more complete information. Should I continue?"*
-
-The counter resets when the user starts a new topic (speech without pending approval) or when the user denies a request.
-
-### Tool Announcements (Auto-Approved Servers Only)
-
-For servers with `require_approval="never"`, the assistant speaks a brief one-sentence acknowledgement when a tool call starts. This is skipped for approval-required servers since the approval prompt already communicates with the user.
-
-### Barge-In During MCP Calls
-
-If the user speaks while an MCP call is running, a system message asks the model to briefly check: *"Do you want to keep waiting or skip?"* The model handles the conversation naturally.
-
-### Deferred Response Creation
-
-`response.create` calls that collide with an active response are deferred to the next `RESPONSE_DONE` event via a `_needs_response_create` flag, avoiding "active response in progress" errors.
-
-### Interim Response
-
-`LlmInterimResponseConfig` with `TOOL` and `LATENCY` triggers is configured for non-realtime models. Automatically skipped for `gpt-realtime` (not supported on the realtime pipeline).
 
 ## Troubleshooting
 
