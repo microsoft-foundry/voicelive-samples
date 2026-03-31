@@ -22,7 +22,7 @@ Integrating MCP servers into a voice assistant introduces unique UX challenges t
 
 ### Tool Approval Must Be Voice-Native
 
-The [SDK sample](https://github.com/Azure/azure-sdk-for-python/blob/main/sdk/voicelive/azure-ai-voicelive/samples/async_mcp_sample.py) uses blocking `input()` for approval — fine for a console demo, but it freezes the audio pipeline and breaks the voice experience. In a voice UX, approvals should be handled conversationally:
+Console-based MCP samples typically use blocking `input()` for approval — fine for a terminal demo, but it freezes the audio pipeline and breaks the voice experience. In a voice UX, approvals should be handled conversationally:
 
 - Inject a system message instructing the model to **verbally ask for permission**
 - Parse the user's spoken response for clear intent (`yes`, `no`, `stop`, `cancel`)
