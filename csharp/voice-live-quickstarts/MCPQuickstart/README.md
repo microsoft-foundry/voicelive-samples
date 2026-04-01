@@ -4,16 +4,62 @@
 
 This sample demonstrates **MCP (Model Context Protocol) server integration** with Voice Live using the Azure AI Voice Live SDK for C#.
 
-Like the Model Quickstart, this sample connects directly to a model (e.g. `gpt-realtime`) — but additionally configures remote MCP servers as tools, enabling the assistant to call external services (DeepWiki, Azure Docs) during the conversation and prompting the user for approval when required.
+Like the Model Quickstart, this sample connects directly to a model (e.g. `gpt-realtime`) — but additionally configures remote MCP servers as tools, enabling the assistant to call external services (DeepWiki, Azure Docs) during the conversation. It implements a **voice-based approval flow** where the assistant verbally asks the user for permission before using tools that require consent.
 
 ## What Makes This Sample Unique
 
-This sample showcases:
-
 - **MCP Server Integration**: Configure remote MCP servers using `VoiceLiveMcpServerDefinition` in the session tools list
-- **Approval Flow**: Interactive console-based approval for `RequireApproval = "always"` MCP tools
-- **MCP Event Handling**: Process MCP tool discovery, execution, and result events via `SessionUpdate` pattern matching
-- **Flexible Authentication**: Supports both API key and Azure credential authentication
+- **Voice-Based Approval**: Instead of blocking on `Console.ReadLine()`, the assistant verbally asks *"Do you approve?"* and interprets the user's spoken *yes* or *no*
+- **Context-Aware Repeat Approvals**: When the model needs additional searches, the prompt changes to *"I need one more search. Should I continue?"*
+- **MCP Tool Announcements**: For auto-approved tools, the assistant says a brief acknowledgement while the call runs
+- **Barge-In Handling**: Interrupting during an MCP call triggers a *"Do you want to keep waiting or skip?"* inquiry
+- **MCP Stall Detection**: If a tool call takes >15 seconds, the assistant proactively tells the user it's still waiting
+
+## Voice UX Considerations for MCP Integration
+
+Integrating MCP servers into a voice assistant introduces unique UX challenges that don't exist in text-based or console-based MCP clients. This quickstart demonstrates patterns to address them. When building your own voice-enabled MCP application, consider the following:
+
+### Tool Approval Must Be Voice-Native
+
+Console-based MCP samples typically use blocking `Console.ReadLine()` for approval — fine for a terminal demo, but it freezes the audio pipeline and breaks the voice experience. In a voice UX, approvals should be handled conversationally:
+
+- Inject a system message instructing the model to **verbally ask for permission**
+- Parse the user's spoken response for clear intent (`yes`, `no`, `stop`, `cancel`)
+- Allow **barge-in** — the user should be able to say "yes" without waiting for the full approval prompt to finish
+
+This quickstart uses word-boundary regex (`\byes\b`, `\b(no|stop|cancel)\b`) to avoid false positives from words like "yesterday" or "nobody".
+
+### System Instructions Must Teach the Model About Approval
+
+The model needs explicit instructions about the approval flow. Without them, it may paraphrase the permission request into a generic *"Let me look that up"* — skipping the actual question. This quickstart includes in the system prompt:
+
+> *"Some tools require user approval. When you receive a system message asking you to request permission, you MUST clearly ask the user for their explicit approval. Never skip the approval question or assume permission is granted."*
+
+The per-request system messages use `"Say exactly:"` phrasing to prevent the model from rewording the question.
+
+### Repeated Tool Calls Need Contextual Messaging
+
+MCP servers like Azure Docs may require multiple searches to gather complete information. Each search triggers a separate approval if `RequireApproval = "always"`. Rather than asking the identical question each time, this quickstart tracks the call count per server:
+
+- **First call**: *"I'd like to search the azure_doc service. Do you approve?"*
+- **Subsequent calls**: *"I need one more search for complete information. Should I continue?"*
+
+The counter resets when results are fully delivered or the user denies a request.
+
+### Silence During Tool Calls Must Be Filled
+
+MCP tool calls can take 3–60+ seconds. Without feedback, the user thinks the assistant is broken. This quickstart uses two layers:
+
+1. **Tool announcements** (immediate): For auto-approved servers, the assistant says *"Let me look that up"* when the call starts. Skipped for approval-required servers since the approval prompt already communicates.
+2. **Stall detection** (client-side, 15s timer): If the MCP call takes >15 seconds, the assistant proactively says *"Still waiting for results..."*.
+
+### Barge-In During MCP Calls
+
+Users will naturally try to interrupt or ask *"Are you still there?"* during long tool calls. Rather than ignoring this, the quickstart injects a system message asking the model to check: *"Do you want to keep waiting or skip?"* The model handles the conversation naturally from there.
+
+### Response Collision Handling
+
+MCP flows generate rapid event sequences where `response.create` calls can collide with active responses. This quickstart defers collisions to the next `ResponseDone` event via a flag, ensuring tool results and approval prompts are never silently dropped.
 
 ## Prerequisites
 
@@ -51,27 +97,22 @@ dotnet run
 dotnet run -- --use-token-credential
 ```
 
-### Available Options
+## Sample Trigger Phrases
 
-- `--use-token-credential`: Use Azure authentication instead of API key
+| Say this | MCP Server | Approval | What happens |
+|---|---|---|---|
+| *"Can you summarize the GitHub repo azure-sdk-for-python?"* | DeepWiki | Auto (`never`) | Assistant announces lookup, calls tools, speaks results |
+| *"Search the Azure documentation for Voice Live API"* | Azure Docs | Voice prompt (`always`) | Assistant asks *"Do you approve?"*, waits for your *yes* or *no* |
 
-Configuration is managed via `appsettings.json` or environment variables (`AZURE_VOICELIVE_API_KEY`, `AZURE_VOICELIVE_ENDPOINT`, `AZURE_VOICELIVE_MODEL`, `AZURE_VOICELIVE_VOICE`).
+## Troubleshooting
 
-### Available Models
-
-- `gpt-realtime` - Latest GPT-realtime model (recommended)
-- See documentation for all available models
-
-## How It Works
-
-The sample extends the Model Quickstart pattern with MCP:
-
-1. **MCP Server Definitions**: Adds `VoiceLiveMcpServerDefinition` instances to `VoiceLiveSessionOptions.Tools`
-2. **Session Configuration**: Sends session config with model, voice, VAD, and MCP tools via `ConfigureSessionAsync`
-3. **Tool Discovery**: Voice Live connects to each MCP server and discovers available tools (`SessionUpdateMcpListToolsCompleted`)
-4. **Tool Execution**: When the model decides to call an MCP tool, the service executes the call (`SessionUpdateResponseMcpCallInProgress` / `SessionUpdateResponseMcpCallCompleted`)
-5. **Approval Flow**: For servers with `RequireApproval = "always"`, a `SessionResponseMcpApprovalRequestItem` is received and the user is prompted in the console
-6. **Approval Response**: The approval/denial is sent back via `SendCommandAsync` with raw JSON
+| Symptom | Resolution |
+|---|---|
+| Audio system check failed | Verify microphone and speakers are connected and configured. |
+| Missing endpoint/authentication error | Update `appsettings.json` or set environment variables. |
+| MCP tool discovery failed | Check that MCP server URLs are reachable from your network. |
+| Repeated approval prompts | Expected — the model may need multiple searches. Say *"no"* or *"stop"* to deny. |
+| Session hit maximum duration | VoiceLive sessions have a 30-minute limit. Restart the sample. |
 
 See [C# Samples README](../../README.md) for available voices, troubleshooting, and additional resources.
 
