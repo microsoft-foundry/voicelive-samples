@@ -285,6 +285,8 @@ class MCPVoiceAssistant:
         self._mcp_stall_task: Optional[asyncio.Task] = None  # Timer for MCP stall detection
         self._active_mcp_items: set = set()  # Item IDs of currently in-progress MCP calls
         self._stale_mcp_items: set = set()  # MCP calls the user has moved on from
+        self._approved_servers_this_turn: set = set()  # Servers user already approved this turn
+        self._mcp_results_pending = False  # True when MCP calls completed but response.create deferred
 
     async def start(self):
         """Start the voice assistant session with MCP support."""
@@ -440,6 +442,9 @@ class MCPVoiceAssistant:
             ap.skip_pending_audio()
             # Approval call counter is NOT reset on speech — it tracks the
             # lifecycle of a task (reset on denial or after results are spoken)
+            # But approved-servers-this-turn resets when user starts a new topic
+            if self._pending_approval is None and self._mcp_call_in_progress <= 0:
+                self._approved_servers_this_turn.clear()
 
             if self._active_response and not self._response_api_done:
                 try:
@@ -492,6 +497,13 @@ class MCPVoiceAssistant:
             if self._approval_prompt_needed and self._pending_approval is not None:
                 self._approval_prompt_needed = False
                 await self._send_approval_voice_prompt(self._pending_approval, conn)
+            # If MCP results are pending and all calls are now done, create response
+            elif self._mcp_results_pending and self._mcp_call_in_progress <= 0 and self._pending_approval is None:
+                self._mcp_results_pending = False
+                try:
+                    await conn.response.create()
+                except Exception:
+                    pass
             # If a response.create was deferred due to collision, retry now
             elif self._needs_response_create:
                 self._needs_response_create = False
@@ -621,6 +633,19 @@ class MCPVoiceAssistant:
                 logger.warning("Failed to send auto-deny: %s", e)
             return
 
+        # Auto-approve if user already approved this server earlier in the same turn.
+        # This avoids repeated approval prompts for consecutive calls to the same service.
+        if server_label in self._approved_servers_this_turn:
+            logger.info("Auto-approving %s — server already approved this turn", function_name)
+            print(f"   Auto-approved: {server_label}/{function_name} (already approved this turn)")
+            try:
+                await connection.conversation.item.create(
+                    item=MCPApprovalResponseRequestItem(approval_request_id=approval_id, approve=True)
+                )
+            except Exception as e:
+                logger.warning("Failed to send auto-approve: %s", e)
+            return
+
         # If another approval is already pending, queue this one
         if self._pending_approval is not None:
             logger.info("Queuing approval for %s — another is already pending", function_name)
@@ -705,8 +730,11 @@ class MCPVoiceAssistant:
 
         # Clear the pending state before sending the response
         self._pending_approval = None
-        if not approved:
+        if approved:
+            self._approved_servers_this_turn.add(pending["server_label"])
+        else:
             self._approval_call_count.clear()  # Topic is over
+            self._approved_servers_this_turn.discard(pending["server_label"])
 
         approval_response_item = MCPApprovalResponseRequestItem(
             approval_request_id=pending["approval_id"], approve=approved
@@ -812,15 +840,20 @@ class MCPVoiceAssistant:
             except Exception as e:
                 logger.warning("Failed to inject late-result context: %s", e)
 
-        # Kick the model to incorporate and speak the MCP output.
-        # If a response is already active, defer to RESPONSE_DONE.
-        try:
-            await connection.response.create()
-        except Exception as e:
-            if "active response" in str(e).lower():
-                self._needs_response_create = True
-            else:
-                logger.warning("Failed to create response after MCP call: %s", e)
+        # Batch response: only call response.create when ALL MCP calls for this
+        # turn have completed. This prevents partial results and repeated tool calls.
+        if self._mcp_call_in_progress <= 0 and self._pending_approval is None and not self._approval_queue:
+            logger.info("All MCP calls complete — creating response")
+            try:
+                await connection.response.create()
+            except Exception as e:
+                if "active response" in str(e).lower():
+                    self._needs_response_create = True
+                else:
+                    logger.warning("Failed to create response after MCP calls: %s", e)
+        else:
+            self._mcp_results_pending = True
+            logger.info("MCP calls still in progress (%d) — deferring response", self._mcp_call_in_progress)
 
     async def _handle_mcp_call_arguments(self, conversation_created_event, connection):
         """Log MCP call details and announce the tool call to the user via voice."""
