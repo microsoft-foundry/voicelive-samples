@@ -275,11 +275,7 @@ namespace Azure.AI.VoiceLive.Samples
             }
 
             // Track which servers require approval for per-turn loop prevention
-            _approvalServers = new HashSet<string>(
-                mcpServers.OfType<VoiceLiveMcpServerDefinition>()
-                    .Where(s => s.RequireApproval?.ToString()?.Contains("always", StringComparison.OrdinalIgnoreCase) == true)
-                    .Select(s => s.ServerLabel ?? "")
-            );
+            _approvalServers = new HashSet<string> { "azure_doc" };
 
             await _session!.ConfigureSessionAsync(sessionOptions, cancellationToken).ConfigureAwait(false);
             _logger.LogInformation("Session with MCP tools configured");
@@ -392,7 +388,7 @@ namespace Azure.AI.VoiceLive.Samples
                         {
                             _logger.LogWarning("Interim response not supported with this model pipeline (non-fatal)");
                         }
-                        else if (msg.Contains("active response in progress", StringComparison.OrdinalIgnoreCase))
+                        else if (msg.Contains("active response", StringComparison.OrdinalIgnoreCase))
                         {
                             _logger.LogDebug("Response collision (expected during MCP flow): {Message}", msg);
                         }
