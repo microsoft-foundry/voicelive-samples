@@ -69,6 +69,16 @@ Users will naturally try to interrupt or ask *"Are you still there?"* during lon
 
 MCP flows generate rapid event sequences where `response.create` calls can collide with active responses. This quickstart defers collisions to the next `ResponseDone` event via a flag, ensuring tool results and approval prompts are never silently dropped.
 
+### MCP Server Selection: Latency Matters
+
+Not all MCP servers are well-suited for voice UX. Servers that respond quickly (< 5 seconds) provide a seamless experience, while slow servers (10–60+ seconds) create awkward silence even with stall notifications. When choosing MCP servers for a voice assistant:
+
+- **Prefer low-latency servers** — search APIs, simple lookups, and cached data sources work best
+- **Avoid servers that perform heavy computation** — large repo analysis, complex document retrieval, or multi-step workflows can take 30–60+ seconds, degrading the voice experience
+- **MCP calls cannot be cancelled** — once a call starts, it runs until the server responds or times out. There is no client-side or API-level cancellation mechanism
+- **Late results arrive out of context** — if the user moves on during a slow MCP call, the result arrives asynchronously and must be introduced as a late result, which can feel disjointed
+- **Consider whether async results are acceptable** for your use case. If users expect real-time answers, long-running MCP servers will frustrate them. If they expect a research-assistant style interaction where results trickle in, it may be acceptable
+
 ## Prerequisites
 
 - [AI Foundry resource](https://learn.microsoft.com/en-us/azure/ai-services/multi-service-resource)
