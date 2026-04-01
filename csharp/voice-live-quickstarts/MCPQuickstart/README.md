@@ -55,15 +55,26 @@ The counter resets when results are fully delivered or the user denies a request
 
 ### Silence During Tool Calls Must Be Filled
 
-MCP tool calls can take 3–60+ seconds. Without feedback, the user thinks the assistant is broken. This quickstart uses three layers:
+MCP tool calls can take 3–60+ seconds. Without feedback, the user thinks the assistant is broken. This quickstart uses two complementary layers to keep the user informed throughout:
 
-1. **Tool announcements** (immediate): For auto-approved servers, the assistant says *"Let me look that up"* when the call starts. Skipped for approval-required servers since the approval prompt already communicates.
-2. **Interim response** (server-side, non-realtime models only): `LlmInterimResponseConfig` with `TOOL` and `LATENCY` triggers generates natural filler. Automatically skipped for `gpt-realtime` (not supported on the realtime pipeline). The transcription model is also selected per pipeline: `azure-speech` for non-realtime, `whisper-1` for realtime.
-3. **Stall detection** (client-side, repeating 15s timer): Notifies the user up to 3 times that results are still pending. Note: MCP calls **cannot be cancelled** via the API — the call runs until the MCP server responds or the server-side timeout fires.
+1. **Tool announcements** (immediate, client-side): For auto-approved servers, the assistant says *"Let me look that up"* when the call starts. Skipped for approval-required servers since the approval prompt already communicates. This covers the first few seconds.
+
+2. **Stall detection** (client-side, repeating timer): If a tool call runs longer than expected, the assistant proactively tells the user it's still waiting. This quickstart uses a **10-second interval with a maximum of 3 notifications** — tune these values based on your expected MCP server latency:
+   - **Fast servers (< 5s)**: Stall timer rarely fires. Consider increasing the interval or reducing max notifications.
+   - **Medium servers (5–15s)**: The default 10s/3-max works well. The first notification arrives before most users lose patience.
+   - **Slow servers (15–60s+)**: Consider shorter intervals (e.g. 8s) or more notifications (e.g. 5) to keep the user engaged. However, note that MCP calls **cannot be cancelled** — the notifications are status updates, not actionable options.
+
+Together, these two layers ensure continuous feedback: the announcement handles seconds 0–5, and the stall timer covers 10s+ with periodic reassurance.
+
+### Batched Response After Tool Completion
+
+When the model makes multiple MCP calls in a single turn (common with search-heavy servers), this quickstart waits for **all calls to complete** before generating a response. This prevents partial results from being spoken prematurely and avoids the model making additional tool calls based on incomplete data.
+
+For approval-required servers, once the user approves the first call, subsequent calls to the **same server within the same turn are auto-approved** — avoiding repeated voice prompts for what is logically a single task.
 
 ### Barge-In During MCP Calls
 
-Users will naturally try to interrupt or ask *"Are you still there?"* during long tool calls. Rather than ignoring this, the quickstart injects a system message so the model can acknowledge the user and reassure them that results are on the way. Note: since MCP calls cannot be cancelled, the assistant cannot actually skip or abort a running tool call.
+Users will naturally try to interrupt or ask *"Are you still there?"* during long tool calls. Rather than ignoring this, the quickstart injects a system message so the model can acknowledge the user and respond to what they said. If the original MCP call completes later, its result is introduced as a **late result** (e.g. *"By the way, those results from earlier just came in..."*). Note: since MCP calls cannot be cancelled, the call continues running in the background regardless of what the user says.
 
 ### Response Collision Handling
 
