@@ -742,7 +742,10 @@ class MCPVoiceAssistant:
                     )
                     await connection.response.create()
                 except Exception as e:
-                    logger.debug("Stall notification failed: %s", e)
+                    if "active response" in str(e).lower():
+                        self._needs_response_create = True
+                    else:
+                        logger.debug("Stall notification failed: %s", e)
 
         self._mcp_stall_task = asyncio.create_task(_stall_check())
 
