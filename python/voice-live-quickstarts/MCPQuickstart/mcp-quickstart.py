@@ -383,7 +383,9 @@ class MCPVoiceAssistant:
             input_audio_noise_reduction=AudioNoiseReduction(type="azure_deep_noise_suppression"),
             tools=mcp_tools,
             tool_choice=ToolChoiceLiteral.AUTO,
-            input_audio_transcription=AudioInputTranscriptionOptions(model="whisper-1"),
+            input_audio_transcription=AudioInputTranscriptionOptions(
+                model="azure-speech" if "realtime" not in self.model.lower() else "whisper-1"
+            ),
         )
 
         # Interim response bridges latency during MCP tool calls, but is only
