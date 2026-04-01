@@ -391,7 +391,7 @@ class MCPVoiceAssistant {
 
         if (this._mcpCallInProgress > 0 && this._pendingApproval === null) {
           try {
-            await session.addConversationItem({ type: "message", role: "system", content: [{ type: "input_text", text: "A tool call is still running. The user just interrupted. Briefly ask them: do you want to keep waiting for the result, or skip it and move on? Keep it short." }] });
+            await session.addConversationItem({ type: "message", role: "system", content: [{ type: "input_text", text: "A tool call is still running. The user just spoke. Briefly acknowledge them and let them know you're still waiting for results. One short sentence." }] });
           } catch {}
         }
       },
@@ -644,15 +644,19 @@ class MCPVoiceAssistant {
   _startMcpStallTimer(session) {
     this._cancelMcpStallTimer();
     let stallCount = 0;
+    const MCP_STALL_MAX_NOTIFICATIONS = 3;
     this._mcpStallTimer = setInterval(async () => {
       if (this._mcpCallInProgress <= 0) {
         this._cancelMcpStallTimer();
         return;
       }
       stallCount++;
-      const msg = stallCount === 1
-        ? "The tool call is taking longer than expected. Briefly let the user know you're still waiting for results."
-        : "The tool call is taking very long. Ask the user: would you like to keep waiting, or should I move on and answer with what I know? Keep it short.";
+      if (stallCount > MCP_STALL_MAX_NOTIFICATIONS) {
+        this._cancelMcpStallTimer();
+        return;
+      }
+      // MCP calls cannot be cancelled — only honest status updates are possible.
+      const msg = "The tool call is still running. Briefly reassure the user that you're still waiting for results. One short sentence only.";
       try {
         await session.addConversationItem({ type: "message", role: "system", content: [{ type: "input_text", text: msg }] });
         await session.sendEvent({ type: "response.create" });

@@ -12,7 +12,7 @@ Like the Model Quickstart, this sample connects directly to a model (e.g. `gpt-r
 - **Voice-Based Approval**: Instead of blocking on `Scanner` input, the assistant verbally asks *"Do you approve?"* and interprets the user's spoken *yes* or *no*
 - **Context-Aware Repeat Approvals**: When the model needs additional searches, the prompt changes to *"I need one more search. Should I continue?"*
 - **MCP Tool Announcements**: For auto-approved tools, the assistant says a brief acknowledgement while the call runs
-- **Barge-In Handling**: Interrupting during an MCP call triggers a *"Do you want to keep waiting or skip?"* inquiry
+- **Barge-In Handling**: Interrupting during an MCP call prompts the assistant to acknowledge and reassure the user
 - **MCP Stall Detection**: If a tool call takes >15 seconds, the assistant proactively tells the user it's still waiting
 
 ## Voice UX Considerations for MCP Integration
@@ -59,11 +59,11 @@ MCP tool calls can take 3–60+ seconds. Without feedback, the user thinks the a
 
 1. **Tool announcements** (immediate): For auto-approved servers, the assistant says *"Let me look that up"* when the call starts. Skipped for approval-required servers since the approval prompt already communicates.
 2. **Interim response** (server-side, non-realtime models only): `LlmInterimResponseConfig` with `TOOL` and `LATENCY` triggers generates natural filler. Automatically skipped for `gpt-realtime` (not supported on the realtime pipeline). The transcription model is also selected per pipeline: `azure-speech` for non-realtime, `whisper-1` for realtime.
-3. **Stall detection** (client-side, repeating 15s timer): Notifies the user every 15 seconds while an MCP call is running. After 30 seconds, offers the user a choice to keep waiting or move on.
+3. **Stall detection** (client-side, repeating 15s timer): Notifies the user up to 3 times that results are still pending. Note: MCP calls **cannot be cancelled** via the API — the call runs until the MCP server responds or the server-side timeout fires.
 
 ### Barge-In During MCP Calls
 
-Users will naturally try to interrupt or ask *"Are you still there?"* during long tool calls. Rather than ignoring this, the quickstart injects a system message asking the model to check: *"Do you want to keep waiting or skip?"* The model handles the conversation naturally from there.
+Users will naturally try to interrupt or ask *"Are you still there?"* during long tool calls. Rather than ignoring this, the quickstart injects a system message so the model can acknowledge the user and reassure them that results are on the way. Note: since MCP calls cannot be cancelled, the assistant cannot actually skip or abort a running tool call.
 
 ### Response Collision Handling
 

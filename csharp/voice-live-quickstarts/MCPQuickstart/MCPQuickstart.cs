@@ -335,7 +335,7 @@ namespace Azure.AI.VoiceLive.Samples
                                 {
                                     type = "message",
                                     role = "system",
-                                    content = new[] { new { type = "input_text", text = "A tool call is still running. The user just interrupted. Briefly ask them: do you want to keep waiting for the result, or skip it and move on? Keep it short." } }
+                                    content = new[] { new { type = "input_text", text = "A tool call is still running. The user just spoke. Briefly acknowledge them and let them know you're still waiting for results. One short sentence." } }
                                 }
                             }), cancellationToken).ConfigureAwait(false);
                         }
@@ -726,15 +726,14 @@ namespace Azure.AI.VoiceLive.Samples
             _ = Task.Run(async () =>
             {
                 int stallCount = 0;
-                while (_mcpCallInProgress > 0)
+                while (_mcpCallInProgress > 0 && stallCount < 3)
                 {
                     await Task.Delay(15000, token).ConfigureAwait(false);
                     if (_mcpCallInProgress <= 0 || _session == null)
                         break;
                     stallCount++;
-                    string msg = stallCount == 1
-                        ? "The tool call is taking longer than expected. Briefly let the user know you're still waiting for results."
-                        : "The tool call is taking very long. Ask the user: would you like to keep waiting, or should I move on and answer with what I know? Keep it short.";
+                    // MCP calls cannot be cancelled — only honest status updates are possible.
+                    string msg = "The tool call is still running. Briefly reassure the user that you're still waiting for results. One short sentence only.";
                     try
                     {
                         await _session.SendCommandAsync(BinaryData.FromObjectAsJson(new

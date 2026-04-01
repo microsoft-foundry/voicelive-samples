@@ -446,22 +446,22 @@ class MCPVoiceAssistant:
                     if "no active response" not in str(e).lower():
                         logger.warning("Cancel failed: %s", e)
 
-            # If an MCP call is running, ask the user if they want to wait or skip
+            # If an MCP call is running, let the user know it's still in progress
             if self._mcp_call_in_progress > 0 and self._pending_approval is None:
-                logger.info("User spoke during MCP call — will ask if they want to skip")
+                logger.info("User spoke during MCP call — acknowledging")
                 try:
                     await conn.conversation.item.create(
                         item=MessageItem(
                             role="system",
                             content=[InputTextContentPart(
-                                text="A tool call is still running. The user just interrupted. "
-                                     "Briefly ask them: do you want to keep waiting for the result, "
-                                     "or skip it and move on? Keep it short."
+                                text="A tool call is still running. The user just spoke. "
+                                     "Briefly acknowledge them and let them know you're "
+                                     "still waiting for results. One short sentence."
                             )],
                         )
                     )
                 except Exception as e:
-                    logger.warning("Failed to inject MCP skip inquiry: %s", e)
+                    logger.warning("Failed to inject MCP status update: %s", e)
 
         elif event.type == ServerEventType.INPUT_AUDIO_BUFFER_SPEECH_STOPPED:
             logger.info("User stopped speaking")
@@ -726,24 +726,24 @@ class MCPVoiceAssistant:
     # </handle_approval>
 
     # <mcp_stall_detection>
+    MCP_STALL_MAX_NOTIFICATIONS = 3
+
     def _start_mcp_stall_timer(self, connection):
         """Start a repeating timer that verbally updates the user if an MCP call takes too long."""
         self._cancel_mcp_stall_timer()
 
         async def _stall_loop():
             stall_count = 0
-            while self._mcp_call_in_progress > 0:
+            while self._mcp_call_in_progress > 0 and stall_count < self.MCP_STALL_MAX_NOTIFICATIONS:
                 await asyncio.sleep(15)
                 if self._mcp_call_in_progress <= 0:
                     break
                 stall_count += 1
-                if stall_count == 1:
-                    msg = ("The tool call is taking longer than expected. "
-                           "Briefly let the user know you're still waiting for results.")
-                else:
-                    msg = ("The tool call is taking very long. Ask the user: "
-                           "would you like to keep waiting, or should I move on "
-                           "and answer with what I know? Keep it short.")
+                # Note: MCP calls cannot be cancelled via the API — only honest
+                # status updates are possible until the server responds or times out.
+                msg = ("The tool call is still running. "
+                       "Briefly reassure the user that you're still waiting for results. "
+                       "One short sentence only.")
                 logger.info("MCP stall notification #%d", stall_count)
                 try:
                     await connection.conversation.item.create(
