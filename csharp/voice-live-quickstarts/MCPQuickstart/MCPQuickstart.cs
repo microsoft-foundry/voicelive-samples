@@ -3,6 +3,8 @@
 
 using System;
 using System.Collections.Generic;
+using System.Linq;
+using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Channels;
 using System.Threading.Tasks;
@@ -33,7 +35,7 @@ namespace Azure.AI.VoiceLive.Samples
             var endpoint = configuration["VoiceLive:Endpoint"] ?? Environment.GetEnvironmentVariable("AZURE_VOICELIVE_ENDPOINT") ?? "https://your-resource-name.services.ai.azure.com/";
             var model = configuration["VoiceLive:Model"] ?? Environment.GetEnvironmentVariable("AZURE_VOICELIVE_MODEL") ?? "gpt-realtime";
             var voice = configuration["VoiceLive:Voice"] ?? Environment.GetEnvironmentVariable("AZURE_VOICELIVE_VOICE") ?? "en-US-Ava:DragonHDLatestNeural";
-            var instructions = configuration["VoiceLive:Instructions"] ?? "You are a helpful AI assistant with access to MCP tools. Use the tools to help answer user questions. Respond naturally and conversationally.";
+            var instructions = configuration["VoiceLive:Instructions"] ?? "You are a helpful AI assistant with access to MCP tools. Use the tools to help answer user questions. Respond naturally and conversationally. Some tools require user approval before they can be used. When you receive a system message asking you to request permission, you MUST clearly ask the user for their explicit approval before proceeding. Always wait for the user to say yes or no. Never skip the approval question or assume permission is granted.";
             var useTokenCredential = args.Length > 0 && args[0] == "--use-token-credential";
 
             // Setup logging
@@ -139,6 +141,19 @@ namespace Azure.AI.VoiceLive.Samples
         private bool _disposed;
         private bool _responseActive;
         private bool _canCancelResponse;
+
+        // Voice-based MCP approval state
+        private record ApprovalInfo(string ApprovalId, string ServerLabel, string FunctionName);
+        private ApprovalInfo? _pendingApproval;
+        private readonly Queue<ApprovalInfo> _approvalQueue = new();
+        private bool _approvalPromptNeeded;
+        private int _mcpCallInProgress;
+        private readonly HashSet<string> _handledMcpCompletions = new();
+        private bool _needsResponseCreate;
+        private readonly Dictionary<string, int> _approvalCallCount = new();
+        private readonly Dictionary<string, string> _mcpItemToServer = new();
+        private HashSet<string> _approvalServers = new();
+        private CancellationTokenSource? _mcpStallCts;
 
         public MCPVoiceAssistant(
             VoiceLiveClient client,
@@ -254,6 +269,13 @@ namespace Azure.AI.VoiceLive.Samples
                 sessionOptions.Tools.Add(tool);
             }
 
+            // Track which servers require approval for per-turn loop prevention
+            _approvalServers = new HashSet<string>(
+                mcpServers.OfType<VoiceLiveMcpServerDefinition>()
+                    .Where(s => s.RequireApproval?.ToString()?.Contains("always", StringComparison.OrdinalIgnoreCase) == true)
+                    .Select(s => s.ServerLabel ?? "")
+            );
+
             await _session!.ConfigureSessionAsync(sessionOptions, cancellationToken).ConfigureAwait(false);
             _logger.LogInformation("Session with MCP tools configured");
         }
@@ -293,6 +315,28 @@ namespace Azure.AI.VoiceLive.Samples
                         try { await _session!.ClearStreamingAudioAsync(cancellationToken).ConfigureAwait(false); }
                         catch { }
                     }
+                    // Reset approval call counter only when no approval is pending
+                    if (_pendingApproval == null)
+                        _approvalCallCount.Clear();
+                    // If an MCP call is running, ask the user if they want to wait or skip
+                    if (_mcpCallInProgress > 0 && _pendingApproval == null)
+                    {
+                        _logger.LogInformation("User spoke during MCP call — will ask if they want to skip");
+                        try
+                        {
+                            await _session!.SendCommandAsync(BinaryData.FromObjectAsJson(new
+                            {
+                                type = "conversation.item.create",
+                                item = new
+                                {
+                                    type = "message",
+                                    role = "system",
+                                    content = new[] { new { type = "input_text", text = "A tool call is still running. The user just interrupted. Briefly ask them: do you want to keep waiting for the result, or skip it and move on? Keep it short." } }
+                                }
+                            }), cancellationToken).ConfigureAwait(false);
+                        }
+                        catch (Exception ex) { _logger.LogWarning("Failed to inject MCP skip inquiry: {Error}", ex.Message); }
+                    }
                     break;
 
                 case SessionUpdateInputAudioBufferSpeechStopped:
@@ -318,16 +362,51 @@ namespace Azure.AI.VoiceLive.Samples
                 case SessionUpdateResponseDone:
                     _responseActive = false;
                     _canCancelResponse = false;
+                    // If an approval prompt needs to be injected, do it now
+                    if (_approvalPromptNeeded && _pendingApproval != null)
+                    {
+                        _approvalPromptNeeded = false;
+                        await SendApprovalVoicePromptAsync(cancellationToken).ConfigureAwait(false);
+                    }
+                    else if (_needsResponseCreate)
+                    {
+                        _needsResponseCreate = false;
+                        try { await _session!.SendCommandAsync(BinaryData.FromObjectAsJson(new { type = "response.create" }), cancellationToken).ConfigureAwait(false); }
+                        catch { }
+                    }
                     break;
 
                 case SessionUpdateError errorEvent:
                     var msg = errorEvent.Error?.Message ?? "";
                     if (!msg.Contains("no active response", StringComparison.OrdinalIgnoreCase))
                     {
-                        Console.WriteLine($"❌ Error: {msg}");
+                        // Suppress non-fatal interim/collision errors
+                        if (msg.Contains("interim response", StringComparison.OrdinalIgnoreCase))
+                        {
+                            _logger.LogWarning("Interim response not supported with this model pipeline (non-fatal)");
+                        }
+                        else if (msg.Contains("active response in progress", StringComparison.OrdinalIgnoreCase))
+                        {
+                            _logger.LogDebug("Response collision (expected during MCP flow): {Message}", msg);
+                        }
+                        else
+                        {
+                            Console.WriteLine($"❌ Error: {msg}");
+                        }
                     }
                     _responseActive = false;
                     _canCancelResponse = false;
+                    break;
+
+                // Transcription event — used for voice-based approval resolution
+                case SessionUpdateConversationItemInputAudioTranscriptionCompleted transcription:
+                    var transcript = transcription.Transcript ?? "";
+                    _logger.LogInformation("User said: {Transcript}", transcript);
+                    Console.WriteLine($"👤 You said:\t{transcript}");
+                    if (_pendingApproval != null)
+                    {
+                        await ResolveVoiceApprovalAsync(transcript, cancellationToken).ConfigureAwait(false);
+                    }
                     break;
 
                 // MCP-specific events
@@ -342,20 +421,98 @@ namespace Azure.AI.VoiceLive.Samples
 
                 case SessionUpdateResponseMcpCallInProgress mcpInProgress:
                     Console.WriteLine("⏳ MCP tool call in progress...");
+                    _mcpCallInProgress++;
+                    StartMcpStallTimer(cancellationToken);
                     break;
 
                 case SessionUpdateResponseMcpCallCompleted mcpCompleted:
-                    Console.WriteLine("✅ MCP tool call completed");
-                    _logger.LogInformation("MCP call completed");
+                {
+                    var itemId = mcpCompleted.ItemId ?? "";
+                    _mcpCallInProgress = Math.Max(0, _mcpCallInProgress - 1);
+                    CancelMcpStallTimer();
+                    if (_handledMcpCompletions.Contains(itemId))
+                    {
+                        _logger.LogDebug("Ignoring duplicate MCP completion for {ItemId}", itemId);
+                    }
+                    else
+                    {
+                        _handledMcpCompletions.Add(itemId);
+                        _logger.LogInformation("MCP call completed for {ItemId}", itemId);
+                        Console.WriteLine("✅ MCP tool call completed successfully");
+
+                        // Clean up item mapping
+                        _mcpItemToServer.Remove(itemId);
+
+                        // Reset approval counter if no more approvals are pending
+                        if (_pendingApproval == null && _approvalQueue.Count == 0)
+                            _approvalCallCount.Clear();
+
+                        // Kick the model to incorporate and speak the MCP output
+                        try
+                        {
+                            await _session!.SendCommandAsync(BinaryData.FromObjectAsJson(new { type = "response.create" }), cancellationToken).ConfigureAwait(false);
+                        }
+                        catch (Exception ex)
+                        {
+                            if (ex.Message.Contains("active response", StringComparison.OrdinalIgnoreCase))
+                                _needsResponseCreate = true;
+                            else
+                                _logger.LogWarning("Failed to create response after MCP call: {Error}", ex.Message);
+                        }
+                    }
                     break;
+                }
 
                 case SessionUpdateResponseMcpCallFailed mcpFailed:
                     Console.WriteLine("❌ MCP tool call failed");
+                    _mcpCallInProgress = Math.Max(0, _mcpCallInProgress - 1);
+                    CancelMcpStallTimer();
+                    try { await _session!.SendCommandAsync(BinaryData.FromObjectAsJson(new { type = "response.create" }), cancellationToken).ConfigureAwait(false); }
+                    catch { }
                     break;
 
                 case SessionUpdateConversationItemCreated itemCreated
                     when itemCreated.Item is SessionResponseMcpApprovalRequestItem mcpApproval:
                     await HandleMCPApprovalAsync(mcpApproval, cancellationToken).ConfigureAwait(false);
+                    break;
+
+                case SessionUpdateConversationItemCreated itemCreated:
+                    _logger.LogDebug("Conversation item created: {ItemType}", itemCreated.Item?.GetType().Name);
+                    // Track mcp_call items for server mapping and announce non-approval tool calls
+                    if (itemCreated.Item is SessionResponseMcpCallItem mcpCallItem)
+                    {
+                        var serverLabel = mcpCallItem.ServerLabel ?? "";
+                        var functionName = mcpCallItem.Name ?? "";
+                        var mcpItemId = mcpCallItem.Id ?? "";
+                        _logger.LogInformation("MCP Call triggered: server_label={Server}, function_name={Function}", serverLabel, functionName);
+                        Console.WriteLine($"🔧 MCP tool call: {serverLabel}/{functionName}");
+                        if (!string.IsNullOrEmpty(mcpItemId))
+                            _mcpItemToServer[mcpItemId] = $"{serverLabel}/{functionName}";
+
+                        // Announce the tool call so the user knows something is happening
+                        if (_pendingApproval == null && !_approvalServers.Contains(serverLabel))
+                        {
+                            try
+                            {
+                                await _session!.SendCommandAsync(BinaryData.FromObjectAsJson(new
+                                {
+                                    type = "conversation.item.create",
+                                    item = new
+                                    {
+                                        type = "message",
+                                        role = "system",
+                                        content = new[] { new { type = "input_text", text = "Briefly tell the user you're looking something up. One short sentence only." } }
+                                    }
+                                }), cancellationToken).ConfigureAwait(false);
+                                await _session!.SendCommandAsync(BinaryData.FromObjectAsJson(new { type = "response.create" }), cancellationToken).ConfigureAwait(false);
+                            }
+                            catch (Exception ex)
+                            {
+                                if (!ex.Message.Contains("active response", StringComparison.OrdinalIgnoreCase))
+                                    _logger.LogWarning("Failed to create tool announcement: {Error}", ex.Message);
+                            }
+                        }
+                    }
                     break;
 
                 default:
@@ -367,50 +524,214 @@ namespace Azure.AI.VoiceLive.Samples
 
         // <handle_approval>
         /// <summary>
-        /// Handle MCP approval request by prompting the user in the console.
+        /// Handle MCP approval request by asking the user via voice.
         /// </summary>
         private async Task HandleMCPApprovalAsync(SessionResponseMcpApprovalRequestItem approvalItem, CancellationToken cancellationToken)
         {
             var approvalId = approvalItem.Id;
-            var serverLabel = approvalItem.ServerLabel;
-            var toolName = approvalItem.Name;
-            var arguments = approvalItem.Arguments;
+            var serverLabel = approvalItem.ServerLabel ?? "";
+            var toolName = approvalItem.Name ?? "";
 
-            Console.WriteLine();
-            Console.WriteLine("🔐 MCP Approval Request:");
-            Console.WriteLine($"   Server:    {serverLabel}");
-            Console.WriteLine($"   Tool:      {toolName}");
-            Console.WriteLine($"   Arguments: {arguments}");
-
-            // Prompt the user for approval
-            bool approved = false;
-            while (true)
+            if (string.IsNullOrEmpty(approvalId))
             {
-                Console.Write("   Approve? (y/n): ");
-                var input = Console.ReadLine()?.Trim().ToLowerInvariant();
-                if (input == "y") { approved = true; break; }
-                if (input == "n") { approved = false; break; }
-                Console.WriteLine("   Invalid input. Please type 'y' or 'n'.");
+                _logger.LogError("MCP approval item missing ID");
+                return;
             }
 
-            // Send the approval or denial response via SendCommandAsync with raw JSON
-            await _session!.SendCommandAsync(BinaryData.FromObjectAsJson(new
+            // If another approval is already pending, queue this one
+            if (_pendingApproval != null)
             {
-                type = "conversation.item.create",
-                item = new
+                _logger.LogInformation("Queuing approval for {Tool} — another is already pending", toolName);
+                _approvalQueue.Enqueue(new ApprovalInfo(approvalId, serverLabel, toolName));
+                return;
+            }
+
+            _logger.LogInformation("MCP approval request: server={Server} tool={Tool}", serverLabel, toolName);
+            Console.WriteLine();
+            Console.WriteLine($"🔐 MCP Approval Request (voice-based):");
+            Console.WriteLine($"   Server: {serverLabel}  Tool: {toolName}");
+
+            _pendingApproval = new ApprovalInfo(approvalId, serverLabel, toolName);
+
+            if (!_responseActive)
+            {
+                await SendApprovalVoicePromptAsync(cancellationToken).ConfigureAwait(false);
+            }
+            else
+            {
+                _approvalPromptNeeded = true;
+            }
+        }
+
+        /// <summary>
+        /// Inject a system message asking the model to verbally request permission.
+        /// </summary>
+        private async Task SendApprovalVoicePromptAsync(CancellationToken cancellationToken)
+        {
+            var pending = _pendingApproval;
+            if (pending == null) return;
+
+            var server = pending.ServerLabel;
+            _approvalCallCount.TryGetValue(server, out var callCount);
+            _approvalCallCount[server] = callCount + 1;
+
+            string prompt;
+            if (callCount == 0)
+            {
+                prompt = "You MUST ask the user for explicit permission before proceeding. "
+                       + $"Say exactly: \"I'd like to search the {server} service for information. "
+                       + "Do you approve? Please say yes or no.\"";
+            }
+            else
+            {
+                prompt = "You MUST ask the user for permission again. "
+                       + "Say exactly: \"I need to do one more search to get complete information. "
+                       + "Should I continue? Please say yes or no.\"";
+            }
+
+            try
+            {
+                await _session!.SendCommandAsync(BinaryData.FromObjectAsJson(new
                 {
-                    type = "mcp_approval_response",
-                    approval_request_id = approvalId,
-                    approve = approved,
-                }
-            }), cancellationToken).ConfigureAwait(false);
-            _logger.LogInformation("Sent MCP approval response: {Approved} for {Tool}", approved, toolName);
+                    type = "conversation.item.create",
+                    item = new
+                    {
+                        type = "message",
+                        role = "system",
+                        content = new[] { new { type = "input_text", text = prompt } }
+                    }
+                }), cancellationToken).ConfigureAwait(false);
+                await _session!.SendCommandAsync(BinaryData.FromObjectAsJson(new { type = "response.create" }), cancellationToken).ConfigureAwait(false);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning("Failed to send approval voice prompt: {Error}", ex.Message);
+            }
+        }
+
+        /// <summary>
+        /// Interpret the user's spoken response as approval or denial.
+        /// </summary>
+        private async Task ResolveVoiceApprovalAsync(string transcript, CancellationToken cancellationToken)
+        {
+            var pending = _pendingApproval;
+            if (pending == null) return;
+
+            var text = transcript.Trim().ToLowerInvariant();
+
+            bool approved = Regex.IsMatch(text, @"\byes\b");
+            bool denied = Regex.IsMatch(text, @"\b(no|stop|cancel)\b");
+
+            if (!approved && !denied)
+            {
+                // Ambiguous — ask again via the deferred prompt mechanism
+                _logger.LogInformation("Ambiguous approval response: {Transcript}", transcript);
+                _approvalPromptNeeded = true;
+                return;
+            }
+
+            if (approved && denied)
+            {
+                // Conflicting signals — treat as denial for safety
+                approved = false;
+            }
+
+            // Clear the pending state before sending the response
+            _pendingApproval = null;
+            if (!approved)
+                _approvalCallCount.Clear();
+
+            try
+            {
+                await _session!.SendCommandAsync(BinaryData.FromObjectAsJson(new
+                {
+                    type = "conversation.item.create",
+                    item = new
+                    {
+                        type = "mcp_approval_response",
+                        approval_request_id = pending.ApprovalId,
+                        approve = approved,
+                    }
+                }), cancellationToken).ConfigureAwait(false);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError("Failed to send approval response: {Error}", ex.Message);
+                return;
+            }
+            _logger.LogInformation("Voice approval resolved: {Approved} for {Tool}", approved, pending.FunctionName);
+            Console.WriteLine($"   Voice approval: {(approved ? "Approved ✅" : "Denied ❌")}");
+
+            // Process next queued approval, if any
+            await ProcessNextApprovalAsync(cancellationToken).ConfigureAwait(false);
+        }
+
+        /// <summary>
+        /// Pop the next queued approval and ask via voice.
+        /// </summary>
+        private async Task ProcessNextApprovalAsync(CancellationToken cancellationToken)
+        {
+            if (_approvalQueue.Count == 0) return;
+
+            var next = _approvalQueue.Dequeue();
+            _pendingApproval = next;
+
+            if (!_responseActive)
+            {
+                await SendApprovalVoicePromptAsync(cancellationToken).ConfigureAwait(false);
+            }
+            else
+            {
+                _approvalPromptNeeded = true;
+            }
         }
         // </handle_approval>
+
+        // <mcp_stall_detection>
+        private void StartMcpStallTimer(CancellationToken ct)
+        {
+            CancelMcpStallTimer();
+            _mcpStallCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
+            var token = _mcpStallCts.Token;
+            _ = Task.Run(async () =>
+            {
+                await Task.Delay(15000, token).ConfigureAwait(false);
+                if (_mcpCallInProgress > 0 && _session != null)
+                {
+                    try
+                    {
+                        await _session.SendCommandAsync(BinaryData.FromObjectAsJson(new
+                        {
+                            type = "conversation.item.create",
+                            item = new
+                            {
+                                type = "message",
+                                role = "system",
+                                content = new[] { new { type = "input_text", text = "The tool call is taking longer than expected. Briefly let the user know you're still waiting for results." } }
+                            }
+                        }), token).ConfigureAwait(false);
+                        await _session.SendCommandAsync(BinaryData.FromObjectAsJson(new { type = "response.create" }), token).ConfigureAwait(false);
+                    }
+                    catch { }
+                }
+            }, token);
+        }
+
+        private void CancelMcpStallTimer()
+        {
+            if (_mcpStallCts != null)
+            {
+                _mcpStallCts.Cancel();
+                _mcpStallCts.Dispose();
+                _mcpStallCts = null;
+            }
+        }
+        // </mcp_stall_detection>
 
         public void Dispose()
         {
             if (_disposed) return;
+            CancelMcpStallTimer();
             _audioProcessor?.Dispose();
             _session?.Dispose();
             _disposed = true;
