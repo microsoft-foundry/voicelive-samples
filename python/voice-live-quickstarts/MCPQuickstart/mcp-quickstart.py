@@ -511,11 +511,13 @@ class MCPVoiceAssistant:
 
         elif event.type == ServerEventType.ERROR:
             msg = event.error.message
+            # Reset response state — errors can terminate a response without RESPONSE_DONE
+            self._active_response = False
+            self._response_api_done = True
             if "Cancellation failed: no active response" not in msg:
-                # Interim response errors are non-fatal — log but don't alarm the user
                 if "interim response" in msg.lower():
                     logger.warning("Interim response not supported with this model pipeline (non-fatal)")
-                elif "active response in progress" in msg.lower():
+                elif "active response" in msg.lower():
                     logger.debug("Response collision (expected during MCP flow): %s", msg)
                 else:
                     logger.error("VoiceLive error: %s", msg)

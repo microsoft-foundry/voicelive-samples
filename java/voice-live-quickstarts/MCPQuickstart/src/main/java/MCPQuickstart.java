@@ -463,6 +463,8 @@ public final class MCPQuickstart {
             // </voice_approval_transcription>
 
             } else if (eventType == ServerEventType.ERROR) {
+                // Reset response state — errors can terminate a response without RESPONSE_DONE
+                state.responseActive = false;
                 if (event instanceof SessionUpdateError) {
                     String msg = ((SessionUpdateError) event).getError().getMessage();
                     if (msg.contains("no active response")) {

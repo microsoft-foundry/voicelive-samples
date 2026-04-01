@@ -431,6 +431,9 @@ class MCPVoiceAssistant {
 
       onServerError: async (event) => {
         const msg = event.error?.message ?? "";
+        // Reset response state — errors can terminate a response without onResponseDone
+        this._activeResponse = false;
+        this._responseApiDone = true;
         if (msg.includes("Cancellation failed: no active response")) return;
         if (msg.toLowerCase().includes("interim response")) {
           console.log("[session] Interim response not supported (non-fatal)");
