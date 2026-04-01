@@ -256,16 +256,16 @@ function defineMCPServers() {
   return [
     {
       type: "mcp",
-      server_label: "deepwiki",
-      server_url: "https://mcp.deepwiki.com/mcp",
-      allowed_tools: ["read_wiki_structure", "ask_question"],
-      require_approval: "never",
+      serverLabel: "deepwiki",
+      serverUrl: "https://mcp.deepwiki.com/mcp",
+      allowedTools: ["read_wiki_structure", "ask_question"],
+      requireApproval: "never",
     },
     {
       type: "mcp",
-      server_label: "azure_doc",
-      server_url: "https://learn.microsoft.com/api/mcp",
-      require_approval: "always",
+      serverLabel: "azure_doc",
+      serverUrl: "https://learn.microsoft.com/api/mcp",
+      requireApproval: "always",
     },
   ];
 }
@@ -308,7 +308,7 @@ class MCPVoiceAssistant {
     const mcpServers = defineMCPServers();
 
     this._approvalServers = new Set(
-      mcpServers.filter(s => s.require_approval === "always").map(s => s.server_label)
+      mcpServers.filter(s => s.requireApproval === "always").map(s => s.serverLabel)
     );
 
     await this._session.updateSession({
@@ -445,13 +445,11 @@ class MCPVoiceAssistant {
 
       // MCP-specific event handlers
       onMcpListToolsCompleted: async (event) => {
-        const serverLabel = event.server_label ?? "unknown";
-        console.log(`🔧 MCP tools discovered for server "${serverLabel}"`);
+        console.log(`🔧 MCP tools discovered successfully`);
       },
 
       onMcpListToolsFailed: async (event) => {
-        const serverLabel = event.server_label ?? "unknown";
-        console.error(`❌ MCP tool discovery failed for server "${serverLabel}"`);
+        console.error(`❌ MCP tool discovery failed`);
       },
 
       onResponseMcpCallInProgress: async (event) => {
@@ -495,7 +493,7 @@ class MCPVoiceAssistant {
       onConversationItemCreated: async (event) => {
         const item = event.item;
         if (item?.type === "mcp_call") {
-          const sl = item.server_label ?? "";
+          const sl = item.serverLabel ?? item.server_label ?? "";
           const fn = item.name ?? "";
           this._mcpItemToServer[item.id] = `${sl}/${fn}`;
           console.log(`🔧 MCP tool call: ${sl}/${fn}`);
@@ -520,7 +518,7 @@ class MCPVoiceAssistant {
    */
   async _handleApprovalRequest(item, session) {
     const approvalId = item.id ?? "unknown";
-    const serverLabel = item.server_label ?? "unknown";
+    const serverLabel = item.serverLabel ?? item.server_label ?? "unknown";
     const functionName = item.name ?? "unknown";
 
     console.log();
