@@ -726,28 +726,36 @@ public final class MCPQuickstart {
     private static void startMcpStallTimer(SessionState state,
                                              VoiceLiveSessionAsyncClient session) {
         cancelMcpStallTimer(state);
-        state.mcpStallTimer = SCHEDULER.schedule(() -> {
-            if (state.mcpCallInProgress.get() > 0) {
-                try {
-                    sendSystemMessage(session,
-                        "The tool call is taking longer than expected. "
-                        + "Briefly let the user know you're still waiting for results.");
-                    session.send(BinaryData.fromString("{\"type\":\"response.create\"}"))
-                        .subscribeOn(Schedulers.boundedElastic())
-                        .subscribe(v -> {}, err -> {
-                            if (err.getMessage() != null
-                                && err.getMessage().toLowerCase().contains("active response")) {
-                                state.needsResponseCreate = true;
-                            }
-                        });
-                } catch (Exception e) {
-                    if (e.getMessage() != null
-                        && e.getMessage().toLowerCase().contains("active response")) {
-                        state.needsResponseCreate = true;
-                    }
+        final AtomicInteger stallCount = new AtomicInteger(0);
+        state.mcpStallTimer = SCHEDULER.scheduleAtFixedRate(() -> {
+            if (state.mcpCallInProgress.get() <= 0) {
+                cancelMcpStallTimer(state);
+                return;
+            }
+            int count = stallCount.incrementAndGet();
+            String msg = count == 1
+                ? "The tool call is taking longer than expected. "
+                  + "Briefly let the user know you're still waiting for results."
+                : "The tool call is taking very long. Ask the user: "
+                  + "would you like to keep waiting, or should I move on "
+                  + "and answer with what I know? Keep it short.";
+            try {
+                sendSystemMessage(session, msg);
+                session.send(BinaryData.fromString("{\"type\":\"response.create\"}"))
+                    .subscribeOn(Schedulers.boundedElastic())
+                    .subscribe(v -> {}, err -> {
+                        if (err.getMessage() != null
+                            && err.getMessage().toLowerCase().contains("active response")) {
+                            state.needsResponseCreate = true;
+                        }
+                    });
+            } catch (Exception e) {
+                if (e.getMessage() != null
+                    && e.getMessage().toLowerCase().contains("active response")) {
+                    state.needsResponseCreate = true;
                 }
             }
-        }, 15, TimeUnit.SECONDS);
+        }, 15, 15, TimeUnit.SECONDS);
     }
 
     /**

@@ -721,9 +721,16 @@ namespace Azure.AI.VoiceLive.Samples
             var token = _mcpStallCts.Token;
             _ = Task.Run(async () =>
             {
-                await Task.Delay(15000, token).ConfigureAwait(false);
-                if (_mcpCallInProgress > 0 && _session != null)
+                int stallCount = 0;
+                while (_mcpCallInProgress > 0)
                 {
+                    await Task.Delay(15000, token).ConfigureAwait(false);
+                    if (_mcpCallInProgress <= 0 || _session == null)
+                        break;
+                    stallCount++;
+                    string msg = stallCount == 1
+                        ? "The tool call is taking longer than expected. Briefly let the user know you're still waiting for results."
+                        : "The tool call is taking very long. Ask the user: would you like to keep waiting, or should I move on and answer with what I know? Keep it short.";
                     try
                     {
                         await _session.SendCommandAsync(BinaryData.FromObjectAsJson(new
@@ -733,7 +740,7 @@ namespace Azure.AI.VoiceLive.Samples
                             {
                                 type = "message",
                                 role = "system",
-                                content = new[] { new { type = "input_text", text = "The tool call is taking longer than expected. Briefly let the user know you're still waiting for results." } }
+                                content = new[] { new { type = "input_text", text = msg } }
                             }
                         }), token).ConfigureAwait(false);
                         await _session.SendCommandAsync(BinaryData.FromObjectAsJson(new { type = "response.create" }), token).ConfigureAwait(false);

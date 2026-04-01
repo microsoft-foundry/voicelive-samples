@@ -645,15 +645,22 @@ class MCPVoiceAssistant {
 
   _startMcpStallTimer(session) {
     this._cancelMcpStallTimer();
-    this._mcpStallTimer = setTimeout(async () => {
-      if (this._mcpCallInProgress > 0) {
-        try {
-          await session.sendEvent({ type: "conversation.item.create", item: { type: "message", role: "system", content: [{ type: "input_text", text: "The tool call is taking longer than expected. Briefly let the user know you're still waiting for results." }] } });
-          await session.sendEvent({ type: "response.create" });
-        } catch (e) {
-          if (e?.message?.toLowerCase().includes("active response")) {
-            this._needsResponseCreate = true;
-          }
+    let stallCount = 0;
+    this._mcpStallTimer = setInterval(async () => {
+      if (this._mcpCallInProgress <= 0) {
+        this._cancelMcpStallTimer();
+        return;
+      }
+      stallCount++;
+      const msg = stallCount === 1
+        ? "The tool call is taking longer than expected. Briefly let the user know you're still waiting for results."
+        : "The tool call is taking very long. Ask the user: would you like to keep waiting, or should I move on and answer with what I know? Keep it short.";
+      try {
+        await session.sendEvent({ type: "conversation.item.create", item: { type: "message", role: "system", content: [{ type: "input_text", text: msg }] } });
+        await session.sendEvent({ type: "response.create" });
+      } catch (e) {
+        if (e?.message?.toLowerCase().includes("active response")) {
+          this._needsResponseCreate = true;
         }
       }
     }, 15000);
@@ -661,7 +668,7 @@ class MCPVoiceAssistant {
 
   _cancelMcpStallTimer() {
     if (this._mcpStallTimer) {
-      clearTimeout(this._mcpStallTimer);
+      clearInterval(this._mcpStallTimer);
       this._mcpStallTimer = null;
     }
   }
