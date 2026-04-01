@@ -6,6 +6,8 @@ import com.azure.ai.voicelive.VoiceLiveClientBuilder;
 import com.azure.ai.voicelive.VoiceLiveServiceVersion;
 import com.azure.ai.voicelive.VoiceLiveSessionAsyncClient;
 import com.azure.ai.voicelive.models.AudioEchoCancellation;
+import com.azure.ai.voicelive.models.AudioInputTranscriptionOptions;
+import com.azure.ai.voicelive.models.AudioInputTranscriptionOptionsModel;
 import com.azure.ai.voicelive.models.AudioNoiseReduction;
 import com.azure.ai.voicelive.models.AudioNoiseReductionType;
 import com.azure.ai.voicelive.models.AzureStandardVoice;
@@ -41,13 +43,22 @@ import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
 import java.util.Properties;
-import java.util.Scanner;
+import java.util.Queue;
+import java.util.Set;
 import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.concurrent.Executors;
 import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ScheduledFuture;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.regex.Pattern;
 
 /**
  * MCP Quickstart - demonstrates MCP server integration with the VoiceLive SDK.
@@ -72,7 +83,11 @@ public final class MCPQuickstart {
     private static final String DEFAULT_INSTRUCTIONS =
         "You are a helpful AI assistant with access to MCP tools. "
         + "Use the tools to help answer user questions. "
-        + "Respond naturally and conversationally.";
+        + "Respond naturally and conversationally. "
+        + "Some tools require user approval before they can be used. When you receive a "
+        + "system message asking you to request permission, you MUST clearly ask the user "
+        + "for their explicit approval before proceeding. Always wait for the user to say "
+        + "yes or no. Never skip the approval question or assume permission is granted.";
 
     private static final String ENV_ENDPOINT = "AZURE_VOICELIVE_ENDPOINT";
     private static final String ENV_API_KEY = "AZURE_VOICELIVE_API_KEY";
@@ -85,6 +100,49 @@ public final class MCPQuickstart {
 
     private MCPQuickstart() {
         throw new UnsupportedOperationException("Utility class");
+    }
+
+    private static final ScheduledExecutorService SCHEDULER = Executors.newSingleThreadScheduledExecutor(r -> {
+        Thread t = new Thread(r, "MCP-StallTimer");
+        t.setDaemon(true);
+        return t;
+    });
+
+    private static final Pattern YES_PATTERN = Pattern.compile("\\byes\\b", Pattern.CASE_INSENSITIVE);
+    private static final Pattern NO_PATTERN = Pattern.compile("\\b(no|stop|cancel)\\b", Pattern.CASE_INSENSITIVE);
+
+    /**
+     * Mutable session state shared across event handlers.
+     * All fields are thread-safe (volatile or concurrent collections).
+     */
+    private static class SessionState {
+        volatile ApprovalInfo pendingApproval;
+        final Queue<ApprovalInfo> approvalQueue = new ConcurrentLinkedQueue<>();
+        volatile boolean approvalPromptNeeded;
+        final AtomicInteger mcpCallInProgress = new AtomicInteger(0);
+        final Set<String> handledMcpCompletions = ConcurrentHashMap.newKeySet();
+        volatile boolean needsResponseCreate;
+        final Map<String, Integer> approvalCallCount = new ConcurrentHashMap<>();
+        final Map<String, String> mcpItemToServer = new ConcurrentHashMap<>();
+        Set<String> approvalServers = Set.of();
+        volatile ScheduledFuture<?> mcpStallTimer;
+        volatile boolean responseActive;
+
+        static class ApprovalInfo {
+            final String approvalId;
+            final String serverLabel;
+            final String functionName;
+
+            ApprovalInfo(String approvalId, String serverLabel, String functionName) {
+                this.approvalId = approvalId;
+                this.serverLabel = serverLabel;
+                this.functionName = functionName;
+            }
+
+            String approvalId() { return approvalId; }
+            String serverLabel() { return serverLabel; }
+            String functionName() { return functionName; }
+        }
     }
 
     private static class AudioPlaybackPacket {
@@ -297,6 +355,10 @@ public final class MCPQuickstart {
             .setAutoTruncate(true)
             .setCreateResponse(true);
 
+        // Enable input audio transcription so we receive user speech as text
+        AudioInputTranscriptionOptions transcriptionOptions =
+            new AudioInputTranscriptionOptions(AudioInputTranscriptionOptionsModel.WHISPER_1);
+
         VoiceLiveSessionOptions options = new VoiceLiveSessionOptions()
             .setInstructions(config.instructions)
             .setVoice(BinaryData.fromObject(new AzureStandardVoice(config.voice)))
@@ -306,6 +368,7 @@ public final class MCPQuickstart {
             .setInputAudioSamplingRate(SAMPLE_RATE)
             .setInputAudioNoiseReduction(new AudioNoiseReduction(AudioNoiseReductionType.NEAR_FIELD))
             .setInputAudioEchoCancellation(new AudioEchoCancellation())
+            .setInputAudioTranscription(transcriptionOptions)
             .setTurnDetection(turnDetection);
 
         // Add MCP servers to the tools list
@@ -318,10 +381,11 @@ public final class MCPQuickstart {
 
     // <handle_mcp_events>
     /**
-     * Handle incoming server events, including MCP-specific events.
+     * Handle incoming server events, including MCP-specific events
+     * and voice-based approval flow.
      */
     private static void handleServerEvent(SessionUpdate event, AudioProcessor audioProcessor,
-                                           Scanner scanner, VoiceLiveSessionAsyncClient session) {
+                                           SessionState state, VoiceLiveSessionAsyncClient session) {
         ServerEventType eventType = event.getType();
 
         try {
@@ -333,8 +397,23 @@ public final class MCPQuickstart {
                 System.out.println("🎤 Listening...");
                 audioProcessor.skipPendingAudio();
 
+                // If an MCP call is running and no approval is pending, ask if user wants to skip
+                if (state.mcpCallInProgress.get() > 0 && state.pendingApproval == null) {
+                    try {
+                        sendSystemMessage(session,
+                            "A tool call is still running. The user just interrupted. "
+                            + "Briefly ask them: do you want to keep waiting for the result, "
+                            + "or skip it and move on? Keep it short.");
+                    } catch (Exception e) {
+                        // best effort
+                    }
+                }
+
             } else if (eventType == ServerEventType.INPUT_AUDIO_BUFFER_SPEECH_STOPPED) {
                 System.out.println("🤔 Processing...");
+
+            } else if (eventType == ServerEventType.RESPONSE_CREATED) {
+                state.responseActive = true;
 
             } else if (eventType == ServerEventType.RESPONSE_AUDIO_DELTA) {
                 if (event instanceof SessionUpdateResponseAudioDelta) {
@@ -349,12 +428,47 @@ public final class MCPQuickstart {
                 System.out.println("🎤 Ready for next input...");
 
             } else if (eventType == ServerEventType.RESPONSE_DONE) {
+                state.responseActive = false;
                 System.out.println("✅ Response complete");
+
+                // If an approval prompt needs to be injected, do it now
+                if (state.approvalPromptNeeded && state.pendingApproval != null) {
+                    state.approvalPromptNeeded = false;
+                    sendApprovalVoicePrompt(state, session);
+                } else if (state.needsResponseCreate) {
+                    // Deferred response.create — retry now that no response is active
+                    state.needsResponseCreate = false;
+                    try {
+                        session.send(BinaryData.fromString("{\"type\":\"response.create\"}"))
+                            .subscribeOn(Schedulers.boundedElastic())
+                            .subscribe(v -> {}, err -> {});
+                    } catch (Exception e) {
+                        // best-effort retry
+                    }
+                }
+
+            // <voice_approval_transcription>
+            } else if (eventType == ServerEventType.CONVERSATION_ITEM_INPUT_AUDIO_TRANSCRIPTION_COMPLETED) {
+                String eventJson = BinaryData.fromObject(event).toString();
+                String transcript = extractJsonField(eventJson, "transcript");
+                System.out.println("👤 You said:\t" + transcript);
+
+                // Interpret as an approval answer if we have a pending approval
+                if (state.pendingApproval != null) {
+                    resolveVoiceApproval(transcript, state, session);
+                }
+            // </voice_approval_transcription>
 
             } else if (eventType == ServerEventType.ERROR) {
                 if (event instanceof SessionUpdateError) {
                     String msg = ((SessionUpdateError) event).getError().getMessage();
-                    if (!msg.contains("no active response")) {
+                    if (msg.contains("no active response")) {
+                        // suppress
+                    } else if (msg.toLowerCase().contains("interim response")) {
+                        // non-fatal
+                    } else if (msg.toLowerCase().contains("active response in progress")) {
+                        // expected during MCP flow
+                    } else {
                         System.out.println("❌ Error: " + msg);
                     }
                 }
@@ -368,16 +482,55 @@ public final class MCPQuickstart {
 
             } else if (eventType == ServerEventType.RESPONSE_MCP_CALL_IN_PROGRESS) {
                 System.out.println("⏳ MCP tool call in progress...");
+                state.mcpCallInProgress.incrementAndGet();
+                startMcpStallTimer(state, session);
 
             } else if (eventType == ServerEventType.RESPONSE_MCP_CALL_COMPLETED) {
-                System.out.println("✅ MCP tool call completed");
+                String eventJson = BinaryData.fromObject(event).toString();
+                String itemId = extractJsonField(eventJson, "item_id");
+                state.mcpCallInProgress.updateAndGet(v -> Math.max(0, v - 1));
+                cancelMcpStallTimer(state);
+
+                if (state.handledMcpCompletions.contains(itemId)) {
+                    // duplicate — ignore
+                } else {
+                    state.handledMcpCompletions.add(itemId);
+                    System.out.println("✅ MCP tool call completed");
+                    state.mcpItemToServer.remove(itemId);
+
+                    // Reset approval counter if no more approvals pending
+                    if (state.pendingApproval == null && state.approvalQueue.isEmpty()) {
+                        state.approvalCallCount.clear();
+                    }
+
+                    // Kick the model to speak the MCP output
+                    try {
+                        session.send(BinaryData.fromString("{\"type\":\"response.create\"}"))
+                            .subscribeOn(Schedulers.boundedElastic())
+                            .subscribe(v -> {}, err -> {
+                                if (err.getMessage().toLowerCase().contains("active response")) {
+                                    state.needsResponseCreate = true;
+                                }
+                            });
+                    } catch (Exception e) {
+                        state.needsResponseCreate = true;
+                    }
+                }
 
             } else if (eventType == ServerEventType.RESPONSE_MCP_CALL_FAILED) {
                 System.out.println("❌ MCP tool call failed");
+                state.mcpCallInProgress.updateAndGet(v -> Math.max(0, v - 1));
+                cancelMcpStallTimer(state);
+                try {
+                    session.send(BinaryData.fromString("{\"type\":\"response.create\"}"))
+                        .subscribeOn(Schedulers.boundedElastic())
+                        .subscribe(v -> {}, err -> {});
+                } catch (Exception e) {
+                    // best effort
+                }
 
             } else if (eventType == ServerEventType.CONVERSATION_ITEM_CREATED) {
-                // Check for MCP approval request in conversation items
-                handleMCPConversationItem(event, scanner, session);
+                handleMCPConversationItem(event, state, session);
             }
         } catch (Exception e) {
             System.err.println("❌ Error handling event: " + e.getMessage());
@@ -387,57 +540,209 @@ public final class MCPQuickstart {
 
     // <handle_approval>
     /**
-     * Handle MCP approval requests by prompting the user in the console
-     * and sending the approval/denial response back to the server.
+     * Handle MCP conversation items: approval requests, tool call announcements,
+     * and item-to-server tracking.
      */
-    private static void handleMCPConversationItem(SessionUpdate event, Scanner scanner,
+    private static void handleMCPConversationItem(SessionUpdate event, SessionState state,
                                                     VoiceLiveSessionAsyncClient session) {
-        // Parse the event JSON to check for MCP approval requests
         String eventJson = BinaryData.fromObject(event).toString();
 
         if (eventJson.contains("mcp_approval_request")) {
-            // Extract approval details from the event JSON for display
+            // Extract approval details
             String approvalId = extractJsonField(eventJson, "id");
             String serverLabel = extractJsonField(eventJson, "server_label");
-            String toolName = extractJsonField(eventJson, "name");
-            String arguments = extractJsonField(eventJson, "arguments");
+            String functionName = extractJsonField(eventJson, "name");
 
-            System.out.println();
-            System.out.println("🔐 MCP Approval Request:");
-            System.out.println("   Server:    " + serverLabel);
-            System.out.println("   Tool:      " + toolName);
-            System.out.println("   Arguments: " + arguments);
-
-            // Prompt the user for approval
-            boolean approved = false;
-            while (true) {
-                System.out.print("   Approve MCP call? (y/n): ");
-                String input = scanner.nextLine().trim().toLowerCase();
-                if ("y".equals(input)) { approved = true; break; }
-                if ("n".equals(input)) { approved = false; break; }
-                System.out.println("   Invalid input. Please type 'y' or 'n'.");
+            if ("unknown".equals(approvalId)) {
+                return;
             }
 
-            System.out.println("   Response: " + (approved ? "Approved ✅" : "Denied ❌"));
+            // If another approval is already pending, queue this one
+            if (state.pendingApproval != null) {
+                state.approvalQueue.add(
+                    new SessionState.ApprovalInfo(approvalId, serverLabel, functionName));
+                return;
+            }
 
-            // Send the approval or denial response back to the server.
-            // MCP approval responses use raw JSON via send(BinaryData) because
-            // the typed SDK classes do not yet cover mcp_approval_response.
-            String approvalJson = String.format(
-                "{\"type\":\"conversation.item.create\",\"item\":"
-                + "{\"type\":\"mcp_approval_response\","
-                + "\"approval_request_id\":\"%s\","
-                + "\"approve\":%s}}",
-                approvalId, approved);
+            System.out.println();
+            System.out.println("🔐 MCP Approval Request (voice-based):");
+            System.out.println("   Server: " + serverLabel + "  Tool: " + functionName);
 
-            session.send(BinaryData.fromString(approvalJson))
-                .then(session.send(BinaryData.fromString("{\"type\":\"response.create\"}")))
-                .subscribeOn(Schedulers.boundedElastic())
-                .subscribe(
-                    v -> {},
-                    error -> System.err.println("❌ Failed to send approval response: " + error.getMessage())
-                );
+            state.pendingApproval =
+                new SessionState.ApprovalInfo(approvalId, serverLabel, functionName);
+
+            if (!state.responseActive) {
+                sendApprovalVoicePrompt(state, session);
+            } else {
+                state.approvalPromptNeeded = true;
+            }
+
+        } else if (eventJson.contains("\"type\":\"mcp_call\"")) {
+            // Track MCP call items and announce non-approval tool calls
+            String itemId = extractJsonField(eventJson, "id");
+            String serverLabel = extractJsonField(eventJson, "server_label");
+            String functionName = extractJsonField(eventJson, "name");
+            System.out.println("🔧 MCP tool call: " + serverLabel + "/" + functionName);
+            state.mcpItemToServer.put(itemId, serverLabel + "/" + functionName);
+
+            // Announce to the user if this server doesn't require approval
+            if (state.pendingApproval == null && !state.approvalServers.contains(serverLabel)) {
+                try {
+                    sendSystemMessage(session,
+                        "Briefly tell the user you're looking something up. One short sentence only.");
+                    session.send(BinaryData.fromString("{\"type\":\"response.create\"}"))
+                        .subscribeOn(Schedulers.boundedElastic())
+                        .subscribe(v -> {}, err -> {});
+                } catch (Exception e) {
+                    // best effort
+                }
+            }
         }
+    }
+
+    /**
+     * Inject a system message asking the model to verbally request permission.
+     */
+    private static void sendApprovalVoicePrompt(SessionState state,
+                                                  VoiceLiveSessionAsyncClient session) {
+        SessionState.ApprovalInfo pending = state.pendingApproval;
+        if (pending == null) return;
+
+        int callCount = state.approvalCallCount.getOrDefault(pending.serverLabel(), 0);
+        state.approvalCallCount.put(pending.serverLabel(), callCount + 1);
+
+        String prompt;
+        if (callCount == 0) {
+            prompt = "You MUST ask the user for explicit permission before proceeding. "
+                + "Say exactly: \"I'd like to search the " + pending.serverLabel()
+                + " service for information. Do you approve? Please say yes or no.\"";
+        } else {
+            prompt = "You MUST ask the user for permission again. "
+                + "Say exactly: \"I need to do one more search to get complete information. "
+                + "Should I continue? Please say yes or no.\"";
+        }
+
+        try {
+            sendSystemMessage(session, prompt);
+            session.send(BinaryData.fromString("{\"type\":\"response.create\"}"))
+                .subscribeOn(Schedulers.boundedElastic())
+                .subscribe(v -> {}, err ->
+                    System.err.println("❌ Failed to send approval voice prompt: " + err.getMessage()));
+        } catch (Exception e) {
+            System.err.println("❌ Failed to send approval voice prompt: " + e.getMessage());
+        }
+    }
+
+    /**
+     * Interpret the user's spoken response as approval or denial.
+     */
+    private static void resolveVoiceApproval(String transcript, SessionState state,
+                                               VoiceLiveSessionAsyncClient session) {
+        SessionState.ApprovalInfo pending = state.pendingApproval;
+        if (pending == null) return;
+
+        String text = transcript.trim().toLowerCase();
+        boolean approved = YES_PATTERN.matcher(text).find();
+        boolean denied = NO_PATTERN.matcher(text).find();
+
+        if (!approved && !denied) {
+            // Ambiguous — ask again at next RESPONSE_DONE
+            state.approvalPromptNeeded = true;
+            return;
+        }
+        if (approved && denied) {
+            approved = false; // conflicting signals — deny for safety
+        }
+
+        state.pendingApproval = null;
+        if (!approved) {
+            state.approvalCallCount.clear();
+        }
+
+        System.out.println("   Voice approval: " + (approved ? "Approved ✅" : "Denied ❌"));
+
+        // Send approval/denial response via raw JSON
+        String approvalJson = String.format(
+            "{\"type\":\"conversation.item.create\",\"item\":"
+            + "{\"type\":\"mcp_approval_response\","
+            + "\"approval_request_id\":\"%s\","
+            + "\"approve\":%s}}",
+            pending.approvalId(), approved);
+
+        session.send(BinaryData.fromString(approvalJson))
+            .subscribeOn(Schedulers.boundedElastic())
+            .subscribe(
+                v -> {},
+                error -> System.err.println("❌ Failed to send approval response: " + error.getMessage())
+            );
+
+        // Process next queued approval, if any
+        processNextApproval(state, session);
+    }
+
+    /**
+     * Pop the next queued approval and ask via voice.
+     */
+    private static void processNextApproval(SessionState state,
+                                              VoiceLiveSessionAsyncClient session) {
+        SessionState.ApprovalInfo next = state.approvalQueue.poll();
+        if (next == null) return;
+
+        state.pendingApproval = next;
+        if (!state.responseActive) {
+            sendApprovalVoicePrompt(state, session);
+        } else {
+            state.approvalPromptNeeded = true;
+        }
+    }
+    // </handle_approval>
+
+    // <mcp_stall_detection>
+    /**
+     * Start a timer that verbally updates the user if an MCP call takes too long.
+     */
+    private static void startMcpStallTimer(SessionState state,
+                                             VoiceLiveSessionAsyncClient session) {
+        cancelMcpStallTimer(state);
+        state.mcpStallTimer = SCHEDULER.schedule(() -> {
+            if (state.mcpCallInProgress.get() > 0) {
+                try {
+                    sendSystemMessage(session,
+                        "The tool call is taking longer than expected. "
+                        + "Briefly let the user know you're still waiting for results.");
+                    session.send(BinaryData.fromString("{\"type\":\"response.create\"}"))
+                        .subscribeOn(Schedulers.boundedElastic())
+                        .subscribe(v -> {}, err -> {});
+                } catch (Exception e) {
+                    // best effort
+                }
+            }
+        }, 15, TimeUnit.SECONDS);
+    }
+
+    /**
+     * Cancel the MCP stall timer if running.
+     */
+    private static void cancelMcpStallTimer(SessionState state) {
+        ScheduledFuture<?> timer = state.mcpStallTimer;
+        if (timer != null && !timer.isDone()) {
+            timer.cancel(false);
+        }
+        state.mcpStallTimer = null;
+    }
+    // </mcp_stall_detection>
+
+    /**
+     * Send a system message to the model via raw JSON.
+     */
+    private static void sendSystemMessage(VoiceLiveSessionAsyncClient session, String text) {
+        String escaped = text.replace("\\", "\\\\").replace("\"", "\\\"");
+        String json = "{\"type\":\"conversation.item.create\",\"item\":"
+            + "{\"type\":\"message\",\"role\":\"system\",\"content\":"
+            + "[{\"type\":\"input_text\",\"text\":\"" + escaped + "\"}]}}";
+        session.send(BinaryData.fromString(json))
+            .subscribeOn(Schedulers.boundedElastic())
+            .subscribe(v -> {}, err -> {});
     }
 
     /**
@@ -452,7 +757,6 @@ public final class MCPQuickstart {
         if (end < 0) return "unknown";
         return json.substring(start, end);
     }
-    // </handle_approval>
 
     private static boolean checkAudioSystem() {
         try {
@@ -488,7 +792,9 @@ public final class MCPQuickstart {
 
         System.out.println("🎙️ Starting Voice Assistant with MCP...");
 
-        Scanner scanner = new Scanner(System.in);
+        // Session state for voice-based MCP approval flow
+        SessionState state = new SessionState();
+        state.approvalServers = Set.of("azure_doc");
 
         try {
             VoiceLiveAsyncClient client;
@@ -521,7 +827,7 @@ public final class MCPQuickstart {
 
                     session.receiveEvents()
                         .subscribe(
-                            event -> handleServerEvent(event, audioProcessor, scanner, session),
+                            event -> handleServerEvent(event, audioProcessor, state, session),
                             error -> System.err.println("❌ Event error: " + error.getMessage())
                         );
 
@@ -536,7 +842,7 @@ public final class MCPQuickstart {
                     System.out.println("Try saying:");
                     System.out.println("  • 'Can you summarize the GitHub repo azure-sdk-for-java?'");
                     System.out.println("  • 'Search the Azure documentation for Voice Live API.'");
-                    System.out.println("You may need to approve some MCP tool calls in the console.");
+                    System.out.println("Approve MCP tool calls by voice — say 'yes' or 'no' when asked.");
                     System.out.println("Press Ctrl+C to exit");
                     System.out.println("=".repeat(70));
                     System.out.println();
@@ -544,6 +850,7 @@ public final class MCPQuickstart {
                     Runtime.getRuntime().addShutdownHook(new Thread(() -> {
                         System.out.println("\n🛑 Shutting down...");
                         audioProcessor.shutdown();
+                        SCHEDULER.shutdownNow();
                     }));
 
                     return Mono.never();
@@ -551,13 +858,12 @@ public final class MCPQuickstart {
                 .doFinally(signalType -> {
                     AudioProcessor ap = audioProcessorRef.get();
                     if (ap != null) ap.shutdown();
+                    SCHEDULER.shutdownNow();
                 })
                 .block();
 
         } catch (Exception e) {
             System.err.println("❌ Fatal error: " + e.getMessage());
-        } finally {
-            scanner.close();
         }
     }
 }
