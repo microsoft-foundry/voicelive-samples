@@ -109,7 +109,7 @@ dotnet run -- --use-token-credential
 
 | Say this | MCP Server | Approval | What happens |
 |---|---|---|---|
-| *"Can you summarize the GitHub repo azure-sdk-for-python?"* | DeepWiki | Auto (`never`) | Assistant announces lookup, calls tools, speaks results |
+| *"What is the GitHub repo fastapi about?"* | DeepWiki | Auto (`never`) | Assistant announces lookup, calls tools, speaks results |
 | *"Search the Azure documentation for Voice Live API"* | Azure Docs | Voice prompt (`always`) | Assistant asks *"Do you approve?"*, waits for your *yes* or *no* |
 
 ## Troubleshooting

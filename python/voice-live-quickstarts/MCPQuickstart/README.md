@@ -18,7 +18,13 @@ Like the Model Quickstart, this sample connects directly to a model (e.g. `gpt-r
 
 ## Voice UX Considerations for MCP Integration
 
-Integrating MCP servers into a voice assistant introduces unique UX challenges that don't exist in text-based or console-based MCP clients. This quickstart demonstrates patterns to address them. When building your own voice-enabled MCP application, consider the following:
+Integrating MCP servers into a voice assistant introduces unique UX challenges that don't exist in text-based or console-based MCP clients.
+
+MCP servers can be configured with different approval policies:
+- **`require_approval: "never"`** — tool calls proceed automatically (e.g., DeepWiki in this sample)
+- **`require_approval: "always"`** — every tool call requires explicit user consent before execution (e.g., Azure Docs in this sample)
+
+In a text-based client, approval is typically a simple `y/n` console prompt. In a voice UX, this needs to be handled conversationally — and several additional challenges arise around latency, silence, and repeated calls. This quickstart demonstrates patterns to address them:
 
 ### Tool Approval Must Be Voice-Native
 
@@ -40,10 +46,11 @@ The per-request system messages use `"Say exactly:"` phrasing to prevent the mod
 
 ### Repeated Tool Calls Need Contextual Messaging
 
-MCP servers like Azure Docs may require multiple searches to gather complete information. Each search triggers a separate approval if `require_approval="always"`. Rather than asking the identical question each time, this quickstart tracks the call count per server:
+MCP servers may require multiple searches to gather complete information. Each search triggers a separate approval if `require_approval="always"`. Rather than asking the identical question each time, this quickstart tracks the call count per server:
 
 - **First call**: *"I'd like to search the azure_doc service. Do you approve?"*
 - **Subsequent calls**: *"I need one more search for complete information. Should I continue?"*
+- **After 3 approved calls**: Auto-denied to prevent infinite loops — the model responds with what it has
 
 The counter resets when results are fully delivered or the user denies a request.
 
@@ -52,8 +59,8 @@ The counter resets when results are fully delivered or the user denies a request
 MCP tool calls can take 3–60+ seconds. Without feedback, the user thinks the assistant is broken. This quickstart uses three layers:
 
 1. **Tool announcements** (immediate): For auto-approved servers, the assistant says *"Let me look that up"* when the call starts. Skipped for approval-required servers since the approval prompt already communicates.
-2. **Interim response** (server-side, non-realtime models only): `LlmInterimResponseConfig` with `TOOL` and `LATENCY` triggers generates natural filler. Automatically skipped for `gpt-realtime` (not supported on the realtime pipeline).
-3. **Stall detection** (client-side, 15s timer): If the MCP call takes >15 seconds, the assistant proactively says *"Still waiting for results..."*. This is the **only** verbal feedback for slow calls on `gpt-realtime`.
+2. **Interim response** (server-side, non-realtime models only): `LlmInterimResponseConfig` with `TOOL` and `LATENCY` triggers generates natural filler. Automatically skipped for `gpt-realtime` (not supported on the realtime pipeline). The transcription model is also selected per pipeline: `azure-speech` for non-realtime, `whisper-1` for realtime.
+3. **Stall detection** (client-side, repeating 15s timer): Notifies the user every 15 seconds while an MCP call is running. After 30 seconds, offers the user a choice to keep waiting or move on.
 
 ### Barge-In During MCP Calls
 
