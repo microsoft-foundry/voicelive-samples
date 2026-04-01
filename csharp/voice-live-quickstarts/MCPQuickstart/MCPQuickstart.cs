@@ -546,6 +546,32 @@ namespace Azure.AI.VoiceLive.Samples
                 return;
             }
 
+            const int MaxApprovalCallsPerTask = 3;
+            _approvalCallCount.TryGetValue(serverLabel, out var currentCount);
+            if (currentCount >= MaxApprovalCallsPerTask)
+            {
+                _logger.LogInformation("Auto-denying {Tool} — reached {Count} calls this task", toolName, currentCount);
+                Console.WriteLine($"   Auto-denied: {serverLabel}/{toolName} (max {MaxApprovalCallsPerTask} calls reached)");
+                try
+                {
+                    await _session!.SendCommandAsync(BinaryData.FromObjectAsJson(new
+                    {
+                        type = "conversation.item.create",
+                        item = new
+                        {
+                            type = "mcp_approval_response",
+                            approval_request_id = approvalId,
+                            approve = false
+                        }
+                    }), cancellationToken).ConfigureAwait(false);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning("Failed to send auto-deny: {Error}", ex.Message);
+                }
+                return;
+            }
+
             _logger.LogInformation("MCP approval request: server={Server} tool={Tool}", serverLabel, toolName);
             Console.WriteLine();
             Console.WriteLine($"🔐 MCP Approval Request (voice-based):");
@@ -712,7 +738,11 @@ namespace Azure.AI.VoiceLive.Samples
                         }), token).ConfigureAwait(false);
                         await _session.SendCommandAsync(BinaryData.FromObjectAsJson(new { type = "response.create" }), token).ConfigureAwait(false);
                     }
-                    catch { }
+                    catch (Exception ex)
+                    {
+                        if (ex.Message.Contains("active response", StringComparison.OrdinalIgnoreCase))
+                            _needsResponseCreate = true;
+                    }
                 }
             }, token);
         }

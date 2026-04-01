@@ -526,6 +526,25 @@ class MCPVoiceAssistant {
     console.log(`   Tool: ${functionName}`);
     console.log(`   Approval ID: ${approvalId}`);
 
+    const MAX_APPROVAL_CALLS_PER_TASK = 3;
+    const currentCount = this._approvalCallCount[serverLabel] ?? 0;
+    if (currentCount >= MAX_APPROVAL_CALLS_PER_TASK) {
+      console.log(`   Auto-denied: ${serverLabel}/${functionName} (max ${MAX_APPROVAL_CALLS_PER_TASK} calls reached)`);
+      try {
+        await session.sendEvent({
+          type: "conversation.item.create",
+          item: {
+            type: "mcp_approval_response",
+            approval_request_id: approvalId,
+            approve: false,
+          },
+        });
+      } catch (err) {
+        console.warn("Failed to send auto-deny:", err?.message ?? err);
+      }
+      return;
+    }
+
     if (this._pendingApproval !== null) {
       this._approvalQueue.push({ approvalId, serverLabel, functionName });
       console.log("   (queued — another approval is pending)");
@@ -631,7 +650,11 @@ class MCPVoiceAssistant {
         try {
           await session.sendEvent({ type: "conversation.item.create", item: { type: "message", role: "system", content: [{ type: "input_text", text: "The tool call is taking longer than expected. Briefly let the user know you're still waiting for results." }] } });
           await session.sendEvent({ type: "response.create" });
-        } catch {}
+        } catch (e) {
+          if (e?.message?.toLowerCase().includes("active response")) {
+            this._needsResponseCreate = true;
+          }
+        }
       }
     }, 15000);
   }

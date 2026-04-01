@@ -557,6 +557,28 @@ public final class MCPQuickstart {
                 return;
             }
 
+            final int MAX_APPROVAL_CALLS_PER_TASK = 3;
+            int currentCount = state.approvalCallCount.getOrDefault(serverLabel, 0);
+            if (currentCount >= MAX_APPROVAL_CALLS_PER_TASK) {
+                System.out.println("   Auto-denied: " + serverLabel + "/" + functionName
+                    + " (max " + MAX_APPROVAL_CALLS_PER_TASK + " calls reached)");
+                try {
+                    String denyJson = String.format(
+                        "{\"type\":\"conversation.item.create\",\"item\":"
+                        + "{\"type\":\"mcp_approval_response\","
+                        + "\"approval_request_id\":\"%s\","
+                        + "\"approve\":false}}",
+                        approvalId);
+                    session.send(BinaryData.fromString(denyJson))
+                        .subscribeOn(Schedulers.boundedElastic())
+                        .subscribe(v -> {}, err ->
+                            System.err.println("Failed to send auto-deny: " + err.getMessage()));
+                } catch (Exception e) {
+                    System.err.println("Failed to send auto-deny: " + e.getMessage());
+                }
+                return;
+            }
+
             // If another approval is already pending, queue this one
             if (state.pendingApproval != null) {
                 state.approvalQueue.add(
@@ -712,9 +734,17 @@ public final class MCPQuickstart {
                         + "Briefly let the user know you're still waiting for results.");
                     session.send(BinaryData.fromString("{\"type\":\"response.create\"}"))
                         .subscribeOn(Schedulers.boundedElastic())
-                        .subscribe(v -> {}, err -> {});
+                        .subscribe(v -> {}, err -> {
+                            if (err.getMessage() != null
+                                && err.getMessage().toLowerCase().contains("active response")) {
+                                state.needsResponseCreate = true;
+                            }
+                        });
                 } catch (Exception e) {
-                    // best effort
+                    if (e.getMessage() != null
+                        && e.getMessage().toLowerCase().contains("active response")) {
+                        state.needsResponseCreate = true;
+                    }
                 }
             }
         }, 15, TimeUnit.SECONDS);
