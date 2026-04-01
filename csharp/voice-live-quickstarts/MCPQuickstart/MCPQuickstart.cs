@@ -156,6 +156,8 @@ namespace Azure.AI.VoiceLive.Samples
         private CancellationTokenSource? _mcpStallCts;
         private readonly HashSet<string> _activeMcpItems = new();
         private readonly HashSet<string> _staleMcpItems = new();
+        private bool _mcpResultsPending;
+        private readonly HashSet<string> _approvedServersThisTurn = new();
 
         public MCPVoiceAssistant(
             VoiceLiveClient client,
@@ -324,6 +326,10 @@ namespace Azure.AI.VoiceLive.Samples
                     // approvals remain) or on explicit denial (in ResolveVoiceApprovalAsync).
                     // Resetting on every speech-start would let the model retry denied calls.
 
+                    // Reset approved-servers-this-turn when user starts a new topic
+                    if (_pendingApproval == null && _mcpCallInProgress <= 0)
+                        _approvedServersThisTurn.Clear();
+
                     // If an MCP call is running, ask the user if they want to wait or skip
                     if (_mcpCallInProgress > 0 && _pendingApproval == null)
                     {
@@ -374,6 +380,13 @@ namespace Azure.AI.VoiceLive.Samples
                     {
                         _approvalPromptNeeded = false;
                         await SendApprovalVoicePromptAsync(cancellationToken).ConfigureAwait(false);
+                    }
+                    // If MCP results are pending and all calls are now done, create response
+                    else if (_mcpResultsPending && _mcpCallInProgress <= 0 && _pendingApproval == null)
+                    {
+                        _mcpResultsPending = false;
+                        try { await _session!.SendCommandAsync(BinaryData.FromObjectAsJson(new { type = "response.create" }), cancellationToken).ConfigureAwait(false); }
+                        catch { }
                     }
                     else if (_needsResponseCreate)
                     {
@@ -476,17 +489,26 @@ namespace Azure.AI.VoiceLive.Samples
                             catch (Exception ex) { _logger.LogWarning("Failed to inject late-result context: {Error}", ex.Message); }
                         }
 
-                        // Kick the model to incorporate and speak the MCP output
-                        try
+                        // Batch response: only call response.create when ALL MCP calls for this
+                        // turn have completed. This prevents partial results and repeated tool calls.
+                        if (_pendingApproval == null && _approvalQueue.Count == 0 && _mcpCallInProgress <= 0)
                         {
-                            await _session!.SendCommandAsync(BinaryData.FromObjectAsJson(new { type = "response.create" }), cancellationToken).ConfigureAwait(false);
+                            try
+                            {
+                                await _session!.SendCommandAsync(BinaryData.FromObjectAsJson(new { type = "response.create" }), cancellationToken).ConfigureAwait(false);
+                            }
+                            catch (Exception ex)
+                            {
+                                if (ex.Message.Contains("active response", StringComparison.OrdinalIgnoreCase))
+                                    _needsResponseCreate = true;
+                                else
+                                    _logger.LogWarning("Failed to create response after MCP call: {Error}", ex.Message);
+                            }
                         }
-                        catch (Exception ex)
+                        else
                         {
-                            if (ex.Message.Contains("active response", StringComparison.OrdinalIgnoreCase))
-                                _needsResponseCreate = true;
-                            else
-                                _logger.LogWarning("Failed to create response after MCP call: {Error}", ex.Message);
+                            _mcpResultsPending = true;
+                            _logger.LogInformation("MCP calls still in progress ({Count}) — deferring response", _mcpCallInProgress);
                         }
                     }
                     break;
@@ -606,6 +628,31 @@ namespace Azure.AI.VoiceLive.Samples
                 return;
             }
 
+            // Auto-approve if user already approved this server earlier in the same turn
+            if (_approvedServersThisTurn.Contains(serverLabel))
+            {
+                _logger.LogInformation("Auto-approving {Tool} — server already approved this turn", toolName);
+                Console.WriteLine($"   Auto-approved: {serverLabel}/{toolName} (already approved this turn)");
+                try
+                {
+                    await _session!.SendCommandAsync(BinaryData.FromObjectAsJson(new
+                    {
+                        type = "conversation.item.create",
+                        item = new
+                        {
+                            type = "mcp_approval_response",
+                            approval_request_id = approvalId,
+                            approve = true
+                        }
+                    }), cancellationToken).ConfigureAwait(false);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning("Failed to send auto-approve: {Error}", ex.Message);
+                }
+                return;
+            }
+
             _logger.LogInformation("MCP approval request: server={Server} tool={Tool}", serverLabel, toolName);
             Console.WriteLine();
             Console.WriteLine($"🔐 MCP Approval Request (voice-based):");
@@ -698,8 +745,13 @@ namespace Azure.AI.VoiceLive.Samples
 
             // Clear the pending state before sending the response
             _pendingApproval = null;
-            if (!approved)
+            if (approved)
+                _approvedServersThisTurn.Add(pending.ServerLabel);
+            else
+            {
                 _approvalCallCount.Clear();
+                _approvedServersThisTurn.Remove(pending.ServerLabel);
+            }
 
             try
             {

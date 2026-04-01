@@ -131,6 +131,8 @@ public final class MCPQuickstart {
         volatile boolean responseActive;
         final Set<String> activeMcpItems = ConcurrentHashMap.newKeySet();
         final Set<String> staleMcpItems = ConcurrentHashMap.newKeySet();
+        volatile boolean mcpResultsPending;
+        final Set<String> approvedServersThisTurn = ConcurrentHashMap.newKeySet();
 
         static class ApprovalInfo {
             final String approvalId;
@@ -404,6 +406,11 @@ public final class MCPQuickstart {
                 System.out.println("🎤 Listening...");
                 audioProcessor.skipPendingAudio();
 
+                // Reset approved-servers-this-turn when user starts a new topic
+                if (state.pendingApproval == null && state.mcpCallInProgress.get() <= 0) {
+                    state.approvedServersThisTurn.clear();
+                }
+
                 // If an MCP call is running and no approval is pending, mark as stale
                 if (state.mcpCallInProgress.get() > 0 && state.pendingApproval == null) {
                     state.staleMcpItems.addAll(state.activeMcpItems);
@@ -444,6 +451,16 @@ public final class MCPQuickstart {
                 if (state.approvalPromptNeeded && state.pendingApproval != null) {
                     state.approvalPromptNeeded = false;
                     sendApprovalVoicePrompt(state, session);
+                // If MCP results are pending and all calls are now done, create response
+                } else if (state.mcpResultsPending && state.mcpCallInProgress.get() <= 0 && state.pendingApproval == null) {
+                    state.mcpResultsPending = false;
+                    try {
+                        session.send(BinaryData.fromString("{\"type\":\"response.create\"}"))
+                            .subscribeOn(Schedulers.boundedElastic())
+                            .subscribe(v -> {}, err -> {});
+                    } catch (Exception e) {
+                        // best-effort
+                    }
                 } else if (state.needsResponseCreate) {
                     // Deferred response.create — retry now that no response is active
                     state.needsResponseCreate = false;
@@ -532,17 +549,24 @@ public final class MCPQuickstart {
                         }
                     }
 
-                    // Kick the model to speak the MCP output
-                    try {
-                        session.send(BinaryData.fromString("{\"type\":\"response.create\"}"))
-                            .subscribeOn(Schedulers.boundedElastic())
-                            .subscribe(v -> {}, err -> {
-                                if (err.getMessage().toLowerCase().contains("active response")) {
-                                    state.needsResponseCreate = true;
-                                }
-                            });
-                    } catch (Exception e) {
-                        state.needsResponseCreate = true;
+                    // Batch response: only call response.create when ALL MCP calls for this
+                    // turn have completed. This prevents partial results and repeated tool calls.
+                    if (state.pendingApproval == null && state.approvalQueue.isEmpty()
+                            && state.mcpCallInProgress.get() <= 0) {
+                        try {
+                            session.send(BinaryData.fromString("{\"type\":\"response.create\"}"))
+                                .subscribeOn(Schedulers.boundedElastic())
+                                .subscribe(v -> {}, err -> {
+                                    if (err.getMessage().toLowerCase().contains("active response")) {
+                                        state.needsResponseCreate = true;
+                                    }
+                                });
+                        } catch (Exception e) {
+                            state.needsResponseCreate = true;
+                        }
+                    } else {
+                        state.mcpResultsPending = true;
+                        System.out.println("[mcp] MCP calls still in progress (" + state.mcpCallInProgress.get() + ") — deferring response");
                     }
                 }
 
@@ -610,6 +634,27 @@ public final class MCPQuickstart {
                             System.err.println("Failed to send auto-deny: " + err.getMessage()));
                 } catch (Exception e) {
                     System.err.println("Failed to send auto-deny: " + e.getMessage());
+                }
+                return;
+            }
+
+            // Auto-approve if user already approved this server earlier in the same turn
+            if (state.approvedServersThisTurn.contains(serverLabel)) {
+                System.out.println("   Auto-approved: " + serverLabel + "/" + functionName
+                    + " (already approved this turn)");
+                try {
+                    String approveJson = String.format(
+                        "{\"type\":\"conversation.item.create\",\"item\":"
+                        + "{\"type\":\"mcp_approval_response\","
+                        + "\"approval_request_id\":\"%s\","
+                        + "\"approve\":true}}",
+                        approvalId);
+                    session.send(BinaryData.fromString(approveJson))
+                        .subscribeOn(Schedulers.boundedElastic())
+                        .subscribe(v -> {}, err ->
+                            System.err.println("Failed to send auto-approve: " + err.getMessage()));
+                } catch (Exception e) {
+                    System.err.println("Failed to send auto-approve: " + e.getMessage());
                 }
                 return;
             }
@@ -712,8 +757,11 @@ public final class MCPQuickstart {
         }
 
         state.pendingApproval = null;
-        if (!approved) {
+        if (approved) {
+            state.approvedServersThisTurn.add(pending.serverLabel());
+        } else {
             state.approvalCallCount.clear();
+            state.approvedServersThisTurn.remove(pending.serverLabel());
         }
 
         System.out.println("   Voice approval: " + (approved ? "Approved ✅" : "Denied ❌"));

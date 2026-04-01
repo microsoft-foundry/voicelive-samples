@@ -298,6 +298,8 @@ class MCPVoiceAssistant {
     this._mcpStallTimer = null;
     this._activeMcpItems = new Set();
     this._staleMcpItems = new Set();
+    this._mcpResultsPending = false;
+    this._approvedServersThisTurn = new Set();
   }
 
   // <configure_session>
@@ -380,6 +382,11 @@ class MCPVoiceAssistant {
         // pending/queued approvals remain) or on denial (in _resolveVoiceApproval).
         // Resetting on every speech-start would let the model retry denied calls.
 
+        // Reset approved-servers-this-turn when user starts a new topic
+        if (this._pendingApproval === null && this._mcpCallInProgress <= 0) {
+          this._approvedServersThisTurn.clear();
+        }
+
         if (this._activeResponse && !this._responseApiDone) {
           try {
             await session.sendEvent({ type: "response.cancel" });
@@ -427,6 +434,9 @@ class MCPVoiceAssistant {
         if (this._approvalPromptNeeded && this._pendingApproval !== null) {
           this._approvalPromptNeeded = false;
           await this._sendApprovalVoicePrompt(session);
+        } else if (this._mcpResultsPending && this._mcpCallInProgress <= 0 && this._pendingApproval === null) {
+          this._mcpResultsPending = false;
+          try { await session.sendEvent({ type: "response.create" }); } catch {}
         } else if (this._needsResponseCreate) {
           this._needsResponseCreate = false;
           try { await session.sendEvent({ type: "response.create" }); } catch {}
@@ -491,12 +501,19 @@ class MCPVoiceAssistant {
           } catch {}
         }
 
-        try {
-          await session.sendEvent({ type: "response.create" });
-        } catch (e) {
-          if (e?.message?.toLowerCase().includes("active response")) {
-            this._needsResponseCreate = true;
+        // Batch response: only call response.create when ALL MCP calls for this
+        // turn have completed. This prevents partial results and repeated tool calls.
+        if (this._mcpCallInProgress <= 0 && this._pendingApproval === null && this._approvalQueue.length === 0) {
+          try {
+            await session.sendEvent({ type: "response.create" });
+          } catch (e) {
+            if (e?.message?.toLowerCase().includes("active response")) {
+              this._needsResponseCreate = true;
+            }
           }
+        } else {
+          this._mcpResultsPending = true;
+          console.log(`[mcp] MCP calls still in progress (${this._mcpCallInProgress}) — deferring response`);
         }
       },
 
@@ -566,6 +583,24 @@ class MCPVoiceAssistant {
       return;
     }
 
+    // Auto-approve if user already approved this server earlier in the same turn
+    if (this._approvedServersThisTurn.has(serverLabel)) {
+      console.log(`   Auto-approved: ${serverLabel}/${functionName} (already approved this turn)`);
+      try {
+        await session.sendEvent({
+          type: "conversation.item.create",
+          item: {
+            type: "mcp_approval_response",
+            approval_request_id: approvalId,
+            approve: true,
+          },
+        });
+      } catch (err) {
+        console.warn("Failed to send auto-approve:", err?.message ?? err);
+      }
+      return;
+    }
+
     if (this._pendingApproval !== null) {
       this._approvalQueue.push({ approvalId, serverLabel, functionName });
       console.log("   (queued — another approval is pending)");
@@ -622,14 +657,17 @@ class MCPVoiceAssistant {
     }
 
     const approved = yesMatch && !noMatch;
-    const { approvalId } = this._pendingApproval;
+    const { approvalId, serverLabel } = this._pendingApproval;
 
     console.log(`   Voice response: ${approved ? "Approved ✅" : "Denied ❌"}`);
 
     this._pendingApproval = null;
 
-    if (!approved) {
+    if (approved) {
+      this._approvedServersThisTurn.add(serverLabel);
+    } else {
       this._approvalCallCount = {};
+      this._approvedServersThisTurn.delete(serverLabel);
     }
 
     try {
