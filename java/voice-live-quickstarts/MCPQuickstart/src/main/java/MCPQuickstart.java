@@ -87,7 +87,9 @@ public final class MCPQuickstart {
         + "Some tools require user approval before they can be used. When you receive a "
         + "system message asking you to request permission, you MUST clearly ask the user "
         + "for their explicit approval before proceeding. Always wait for the user to say "
-        + "yes or no. Never skip the approval question or assume permission is granted.";
+        + "yes or no. Never skip the approval question or assume permission is granted. "
+        + "If a tool result arrives after the conversation has moved to a different topic, "
+        + "briefly introduce it as a late result before sharing the findings.";
 
     private static final String ENV_ENDPOINT = "AZURE_VOICELIVE_ENDPOINT";
     private static final String ENV_API_KEY = "AZURE_VOICELIVE_API_KEY";
@@ -127,6 +129,8 @@ public final class MCPQuickstart {
         Set<String> approvalServers = Set.of();
         volatile ScheduledFuture<?> mcpStallTimer;
         volatile boolean responseActive;
+        final Set<String> activeMcpItems = ConcurrentHashMap.newKeySet();
+        final Set<String> staleMcpItems = ConcurrentHashMap.newKeySet();
 
         static class ApprovalInfo {
             final String approvalId;
@@ -400,13 +404,15 @@ public final class MCPQuickstart {
                 System.out.println("🎤 Listening...");
                 audioProcessor.skipPendingAudio();
 
-                // If an MCP call is running and no approval is pending, ask if user wants to skip
+                // If an MCP call is running and no approval is pending, mark as stale
                 if (state.mcpCallInProgress.get() > 0 && state.pendingApproval == null) {
+                    state.staleMcpItems.addAll(state.activeMcpItems);
+                    System.out.println("[barge-in] Marking " + state.activeMcpItems.size() + " MCP calls as stale");
                     try {
                         sendSystemMessage(session,
-                            "A tool call is still running. The user just spoke. "
-                            + "Briefly acknowledge them and let them know you're "
-                            + "still waiting for results. One short sentence.");
+                            "A tool call is still running in the background. The user just spoke. "
+                            + "Respond to what the user said. If a tool result arrives later, "
+                            + "briefly introduce it as a late result from an earlier request.");
                     } catch (Exception e) {
                         // best effort
                     }
@@ -488,24 +494,42 @@ public final class MCPQuickstart {
             } else if (eventType == ServerEventType.RESPONSE_MCP_CALL_IN_PROGRESS) {
                 System.out.println("⏳ MCP tool call in progress...");
                 state.mcpCallInProgress.incrementAndGet();
+                String inProgressJson = BinaryData.fromObject(event).toString();
+                String inProgressItemId = extractJsonField(inProgressJson, "item_id");
+                if (inProgressItemId != null) state.activeMcpItems.add(inProgressItemId);
                 startMcpStallTimer(state, session);
 
             } else if (eventType == ServerEventType.RESPONSE_MCP_CALL_COMPLETED) {
                 String eventJson = BinaryData.fromObject(event).toString();
                 String itemId = extractJsonField(eventJson, "item_id");
                 state.mcpCallInProgress.updateAndGet(v -> Math.max(0, v - 1));
+                if (itemId != null) state.activeMcpItems.remove(itemId);
                 cancelMcpStallTimer(state);
 
                 if (state.handledMcpCompletions.contains(itemId)) {
                     // duplicate — ignore
                 } else {
                     state.handledMcpCompletions.add(itemId);
-                    System.out.println("✅ MCP tool call completed");
+                    boolean isStale = itemId != null && state.staleMcpItems.remove(itemId);
+                    System.out.println("✅ MCP tool call completed (stale=" + isStale + ")");
                     state.mcpItemToServer.remove(itemId);
 
                     // Reset approval counter if no more approvals pending
                     if (state.pendingApproval == null && state.approvalQueue.isEmpty()) {
                         state.approvalCallCount.clear();
+                    }
+
+                    // If the user moved on during this call, tell the model it's a late result
+                    if (isStale) {
+                        try {
+                            sendSystemMessage(session,
+                                "This tool result is from an earlier request. The user has "
+                                + "since moved on. Briefly introduce it as a late result, e.g. "
+                                + "'By the way, those results from earlier just came in...' "
+                                + "then share the key findings concisely.");
+                        } catch (Exception e) {
+                            // best effort
+                        }
                     }
 
                     // Kick the model to speak the MCP output
@@ -524,7 +548,13 @@ public final class MCPQuickstart {
 
             } else if (eventType == ServerEventType.RESPONSE_MCP_CALL_FAILED) {
                 System.out.println("❌ MCP tool call failed");
+                String failedJson = BinaryData.fromObject(event).toString();
+                String failedItemId = extractJsonField(failedJson, "item_id");
                 state.mcpCallInProgress.updateAndGet(v -> Math.max(0, v - 1));
+                if (failedItemId != null) {
+                    state.activeMcpItems.remove(failedItemId);
+                    state.staleMcpItems.remove(failedItemId);
+                }
                 cancelMcpStallTimer(state);
                 try {
                     session.send(BinaryData.fromString("{\"type\":\"response.create\"}"))
@@ -762,7 +792,7 @@ public final class MCPQuickstart {
                     state.needsResponseCreate = true;
                 }
             }
-        }, 15, 15, TimeUnit.SECONDS);
+        }, 10, 10, TimeUnit.SECONDS);
     }
 
     /**

@@ -33,7 +33,7 @@ function parseArguments(argv) {
       process.env.AZURE_VOICELIVE_VOICE ?? "en-US-Ava:DragonHDLatestNeural",
     instructions:
       process.env.AZURE_VOICELIVE_INSTRUCTIONS ??
-      "You are a helpful AI assistant with access to MCP tools. Always respond in English. When a user asks a question, use the appropriate tool once to find information, then summarize the results conversationally. IMPORTANT: Never call the same tool more than once per user question. After receiving a tool result, always respond to the user with what you found — do not search again. Some tools require user approval before they can be used. When you receive a system message asking you to request permission, you MUST clearly ask the user for their explicit approval before proceeding. Always wait for the user to say yes or no. Never skip the approval question or assume permission is granted.",
+      "You are a helpful AI assistant with access to MCP tools. Always respond in English. When a user asks a question, use the appropriate tool once to find information, then summarize the results conversationally. IMPORTANT: Never call the same tool more than once per user question. After receiving a tool result, always respond to the user with what you found — do not search again. Some tools require user approval before they can be used. When you receive a system message asking you to request permission, you MUST clearly ask the user for their explicit approval before proceeding. Always wait for the user to say yes or no. Never skip the approval question or assume permission is granted. If a tool result arrives after the conversation has moved to a different topic, briefly introduce it as a late result before sharing the findings.",
     audioInputDevice: process.env.AUDIO_INPUT_DEVICE,
     useTokenCredential: false,
     noAudio: false,
@@ -296,6 +296,8 @@ class MCPVoiceAssistant {
     this._mcpItemToServer = {};
     this._approvalServers = new Set();
     this._mcpStallTimer = null;
+    this._activeMcpItems = new Set();
+    this._staleMcpItems = new Set();
   }
 
   // <configure_session>
@@ -390,8 +392,10 @@ class MCPVoiceAssistant {
         }
 
         if (this._mcpCallInProgress > 0 && this._pendingApproval === null) {
+          this._staleMcpItems = new Set([...this._staleMcpItems, ...this._activeMcpItems]);
+          console.log(`[barge-in] Marking ${this._activeMcpItems.size} MCP calls as stale`);
           try {
-            await session.addConversationItem({ type: "message", role: "system", content: [{ type: "input_text", text: "A tool call is still running. The user just spoke. Briefly acknowledge them and let them know you're still waiting for results. One short sentence." }] });
+            await session.addConversationItem({ type: "message", role: "system", content: [{ type: "input_text", text: "A tool call is still running in the background. The user just spoke. Respond to what the user said. If a tool result arrives later, briefly introduce it as a late result from an earlier request." }] });
           } catch {}
         }
       },
@@ -455,6 +459,7 @@ class MCPVoiceAssistant {
       onResponseMcpCallInProgress: async (event) => {
         console.log("⏳ MCP tool call in progress...");
         this._mcpCallInProgress++;
+        this._activeMcpItems.add(event.item_id);
         this._startMcpStallTimer(session);
       },
 
@@ -466,14 +471,26 @@ class MCPVoiceAssistant {
       onResponseMcpCallCompleted: async (event) => {
         const itemId = event.item_id ?? "";
         this._mcpCallInProgress = Math.max(0, this._mcpCallInProgress - 1);
+        this._activeMcpItems.delete(itemId);
         this._cancelMcpStallTimer();
         if (this._handledMcpCompletions.has(itemId)) return;
         this._handledMcpCompletions.add(itemId);
-        console.log("✅ MCP tool call completed");
+
+        const isStale = this._staleMcpItems.has(itemId);
+        this._staleMcpItems.delete(itemId);
+        console.log(`✅ MCP tool call completed (stale=${isStale})`);
+
         delete this._mcpItemToServer[itemId];
         if (this._pendingApproval === null && this._approvalQueue.length === 0) {
           this._approvalCallCount = {};
         }
+
+        if (isStale) {
+          try {
+            await session.addConversationItem({ type: "message", role: "system", content: [{ type: "input_text", text: "This tool result is from an earlier request. The user has since moved on. Briefly introduce it as a late result, e.g. 'By the way, those results from earlier just came in...' then share the key findings concisely." }] });
+          } catch {}
+        }
+
         try {
           await session.sendEvent({ type: "response.create" });
         } catch (e) {
@@ -484,8 +501,11 @@ class MCPVoiceAssistant {
       },
 
       onResponseMcpCallFailed: async (event) => {
+        const itemId = event.item_id ?? "";
         console.error("❌ MCP tool call failed");
         this._mcpCallInProgress = Math.max(0, this._mcpCallInProgress - 1);
+        this._activeMcpItems.delete(itemId);
+        this._staleMcpItems.delete(itemId);
         this._cancelMcpStallTimer();
         try { await session.sendEvent({ type: "response.create" }); } catch {}
       },
@@ -665,7 +685,7 @@ class MCPVoiceAssistant {
           this._needsResponseCreate = true;
         }
       }
-    }, 15000);
+    }, 10000);
   }
 
   _cancelMcpStallTimer() {

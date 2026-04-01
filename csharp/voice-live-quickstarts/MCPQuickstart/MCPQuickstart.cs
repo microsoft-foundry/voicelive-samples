@@ -35,7 +35,7 @@ namespace Azure.AI.VoiceLive.Samples
             var endpoint = configuration["VoiceLive:Endpoint"] ?? Environment.GetEnvironmentVariable("AZURE_VOICELIVE_ENDPOINT") ?? "https://your-resource-name.services.ai.azure.com/";
             var model = configuration["VoiceLive:Model"] ?? Environment.GetEnvironmentVariable("AZURE_VOICELIVE_MODEL") ?? "gpt-realtime";
             var voice = configuration["VoiceLive:Voice"] ?? Environment.GetEnvironmentVariable("AZURE_VOICELIVE_VOICE") ?? "en-US-Ava:DragonHDLatestNeural";
-            var instructions = configuration["VoiceLive:Instructions"] ?? "You are a helpful AI assistant with access to MCP tools. Use the tools to help answer user questions. Respond naturally and conversationally. Some tools require user approval before they can be used. When you receive a system message asking you to request permission, you MUST clearly ask the user for their explicit approval before proceeding. Always wait for the user to say yes or no. Never skip the approval question or assume permission is granted.";
+            var instructions = configuration["VoiceLive:Instructions"] ?? "You are a helpful AI assistant with access to MCP tools. Use the tools to help answer user questions. Respond naturally and conversationally. Some tools require user approval before they can be used. When you receive a system message asking you to request permission, you MUST clearly ask the user for their explicit approval before proceeding. Always wait for the user to say yes or no. Never skip the approval question or assume permission is granted. If a tool result arrives after the conversation has moved to a different topic, briefly introduce it as a late result before sharing the findings.";
             var useTokenCredential = args.Length > 0 && args[0] == "--use-token-credential";
 
             // Setup logging
@@ -154,6 +154,8 @@ namespace Azure.AI.VoiceLive.Samples
         private readonly Dictionary<string, string> _mcpItemToServer = new();
         private HashSet<string> _approvalServers = new();
         private CancellationTokenSource? _mcpStallCts;
+        private readonly HashSet<string> _activeMcpItems = new();
+        private readonly HashSet<string> _staleMcpItems = new();
 
         public MCPVoiceAssistant(
             VoiceLiveClient client,
@@ -325,7 +327,8 @@ namespace Azure.AI.VoiceLive.Samples
                     // If an MCP call is running, ask the user if they want to wait or skip
                     if (_mcpCallInProgress > 0 && _pendingApproval == null)
                     {
-                        _logger.LogInformation("User spoke during MCP call — will ask if they want to skip");
+                        foreach (var id in _activeMcpItems) _staleMcpItems.Add(id);
+                        _logger.LogInformation("User spoke during MCP call — marking {Count} calls as stale", _activeMcpItems.Count);
                         try
                         {
                             await _session!.SendCommandAsync(BinaryData.FromObjectAsJson(new
@@ -335,11 +338,11 @@ namespace Azure.AI.VoiceLive.Samples
                                 {
                                     type = "message",
                                     role = "system",
-                                    content = new[] { new { type = "input_text", text = "A tool call is still running. The user just spoke. Briefly acknowledge them and let them know you're still waiting for results. One short sentence." } }
+                                    content = new[] { new { type = "input_text", text = "A tool call is still running in the background. The user just spoke. Respond to what the user said. If a tool result arrives later, briefly introduce it as a late result from an earlier request." } }
                                 }
                             }), cancellationToken).ConfigureAwait(false);
                         }
-                        catch (Exception ex) { _logger.LogWarning("Failed to inject MCP skip inquiry: {Error}", ex.Message); }
+                        catch (Exception ex) { _logger.LogWarning("Failed to inject MCP status update: {Error}", ex.Message); }
                     }
                     break;
 
@@ -426,6 +429,7 @@ namespace Azure.AI.VoiceLive.Samples
                 case SessionUpdateResponseMcpCallInProgress mcpInProgress:
                     Console.WriteLine("⏳ MCP tool call in progress...");
                     _mcpCallInProgress++;
+                    _activeMcpItems.Add(mcpInProgress.ItemId ?? "");
                     StartMcpStallTimer(cancellationToken);
                     break;
 
@@ -433,6 +437,7 @@ namespace Azure.AI.VoiceLive.Samples
                 {
                     var itemId = mcpCompleted.ItemId ?? "";
                     _mcpCallInProgress = Math.Max(0, _mcpCallInProgress - 1);
+                    _activeMcpItems.Remove(itemId);
                     CancelMcpStallTimer();
                     if (_handledMcpCompletions.Contains(itemId))
                     {
@@ -441,7 +446,8 @@ namespace Azure.AI.VoiceLive.Samples
                     else
                     {
                         _handledMcpCompletions.Add(itemId);
-                        _logger.LogInformation("MCP call completed for {ItemId}", itemId);
+                        bool isStale = _staleMcpItems.Remove(itemId);
+                        _logger.LogInformation("MCP call completed for {ItemId} (stale={IsStale})", itemId, isStale);
                         Console.WriteLine("✅ MCP tool call completed successfully");
 
                         // Clean up item mapping
@@ -450,6 +456,25 @@ namespace Azure.AI.VoiceLive.Samples
                         // Reset approval counter if no more approvals are pending
                         if (_pendingApproval == null && _approvalQueue.Count == 0)
                             _approvalCallCount.Clear();
+
+                        // If the user moved on during this call, tell the model it's a late result
+                        if (isStale)
+                        {
+                            try
+                            {
+                                await _session!.SendCommandAsync(BinaryData.FromObjectAsJson(new
+                                {
+                                    type = "conversation.item.create",
+                                    item = new
+                                    {
+                                        type = "message",
+                                        role = "system",
+                                        content = new[] { new { type = "input_text", text = "This tool result is from an earlier request. The user has since moved on. Briefly introduce it as a late result, e.g. 'By the way, those results from earlier just came in...' then share the key findings concisely." } }
+                                    }
+                                }), cancellationToken).ConfigureAwait(false);
+                            }
+                            catch (Exception ex) { _logger.LogWarning("Failed to inject late-result context: {Error}", ex.Message); }
+                        }
 
                         // Kick the model to incorporate and speak the MCP output
                         try
@@ -468,12 +493,17 @@ namespace Azure.AI.VoiceLive.Samples
                 }
 
                 case SessionUpdateResponseMcpCallFailed mcpFailed:
+                {
+                    var failedItemId = mcpFailed.ItemId ?? "";
                     Console.WriteLine("❌ MCP tool call failed");
                     _mcpCallInProgress = Math.Max(0, _mcpCallInProgress - 1);
+                    _activeMcpItems.Remove(failedItemId);
+                    _staleMcpItems.Remove(failedItemId);
                     CancelMcpStallTimer();
                     try { await _session!.SendCommandAsync(BinaryData.FromObjectAsJson(new { type = "response.create" }), cancellationToken).ConfigureAwait(false); }
                     catch { }
                     break;
+                }
 
                 case SessionUpdateConversationItemCreated itemCreated
                     when itemCreated.Item is SessionResponseMcpApprovalRequestItem mcpApproval:
@@ -728,7 +758,7 @@ namespace Azure.AI.VoiceLive.Samples
                 int stallCount = 0;
                 while (_mcpCallInProgress > 0 && stallCount < 3)
                 {
-                    await Task.Delay(15000, token).ConfigureAwait(false);
+                    await Task.Delay(10000, token).ConfigureAwait(false);
                     if (_mcpCallInProgress <= 0 || _session == null)
                         break;
                     stallCount++;
