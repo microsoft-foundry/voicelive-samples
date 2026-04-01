@@ -225,11 +225,11 @@ namespace Azure.AI.VoiceLive.Samples
                 new VoiceLiveMcpServerDefinition("deepwiki", "https://mcp.deepwiki.com/mcp")
                 {
                     AllowedTools = { "read_wiki_structure", "ask_question" },
-                    RequireApproval = BinaryData.FromObjectAsJson(MCPApprovalType.Never),
+                    RequireApproval = BinaryData.FromString("\"never\""),
                 },
                 new VoiceLiveMcpServerDefinition("azure_doc", "https://learn.microsoft.com/api/mcp")
                 {
-                    RequireApproval = BinaryData.FromObjectAsJson(MCPApprovalType.Always),
+                    RequireApproval = BinaryData.FromString("\"always\""),
                 },
             };
 
