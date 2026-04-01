@@ -283,6 +283,8 @@ class MCPVoiceAssistant:
         self._mcp_item_to_server: dict = {}  # Map MCP item IDs to server_label/function_name
         self._approval_servers: set = set()  # Server labels that require approval
         self._mcp_stall_task: Optional[asyncio.Task] = None  # Timer for MCP stall detection
+        self._active_mcp_items: set = set()  # Item IDs of currently in-progress MCP calls
+        self._stale_mcp_items: set = set()  # MCP calls the user has moved on from
 
     async def start(self):
         """Start the voice assistant session with MCP support."""
@@ -446,17 +448,19 @@ class MCPVoiceAssistant:
                     if "no active response" not in str(e).lower():
                         logger.warning("Cancel failed: %s", e)
 
-            # If an MCP call is running, let the user know it's still in progress
+            # If an MCP call is running, mark current calls as stale (user is moving on)
+            # and let the user know it's still in progress
             if self._mcp_call_in_progress > 0 and self._pending_approval is None:
-                logger.info("User spoke during MCP call — acknowledging")
+                self._stale_mcp_items.update(self._active_mcp_items)
+                logger.info("User spoke during MCP call — marking %d calls as stale", len(self._active_mcp_items))
                 try:
                     await conn.conversation.item.create(
                         item=MessageItem(
                             role="system",
                             content=[InputTextContentPart(
-                                text="A tool call is still running. The user just spoke. "
-                                     "Briefly acknowledge them and let them know you're "
-                                     "still waiting for results. One short sentence."
+                                text="A tool call is still running in the background. The user just spoke. "
+                                     "Respond to what the user said. If a tool result arrives later, "
+                                     "briefly introduce it as a late result from an earlier request."
                             )],
                         )
                     )
@@ -539,23 +543,30 @@ class MCPVoiceAssistant:
             logger.info("MCP call in progress for %s", event.item_id)
             print("⏳ MCP tool call in progress...")
             self._mcp_call_in_progress += 1
+            self._active_mcp_items.add(event.item_id)
             self._start_mcp_stall_timer(conn)
 
         elif event.type == ServerEventType.RESPONSE_MCP_CALL_COMPLETED:
             item_id = event.item_id
             self._mcp_call_in_progress = max(0, self._mcp_call_in_progress - 1)
+            self._active_mcp_items.discard(item_id)
             self._cancel_mcp_stall_timer()
             if item_id in self._handled_mcp_completions:
                 logger.debug("Ignoring duplicate MCP completion for %s", item_id)
             else:
                 self._handled_mcp_completions.add(item_id)
-                logger.info("MCP call completed for %s", item_id)
-                await self._handle_mcp_call_completed(event, conn)
+                is_stale = item_id in self._stale_mcp_items
+                self._stale_mcp_items.discard(item_id)
+                logger.info("MCP call completed for %s (stale=%s)", item_id, is_stale)
+                await self._handle_mcp_call_completed(event, conn, is_stale=is_stale)
 
         elif event.type == ServerEventType.RESPONSE_MCP_CALL_FAILED:
-            logger.error("MCP call failed for %s", event.item_id)
+            item_id = event.item_id
+            logger.error("MCP call failed for %s", item_id)
             print("❌ MCP tool call failed")
             self._mcp_call_in_progress = max(0, self._mcp_call_in_progress - 1)
+            self._active_mcp_items.discard(item_id)
+            self._stale_mcp_items.discard(item_id)
             self._cancel_mcp_stall_timer()
             # Kick the model to inform the user the tool call failed
             try:
@@ -735,7 +746,7 @@ class MCPVoiceAssistant:
         async def _stall_loop():
             stall_count = 0
             while self._mcp_call_in_progress > 0 and stall_count < self.MCP_STALL_MAX_NOTIFICATIONS:
-                await asyncio.sleep(15)
+                await asyncio.sleep(10)
                 if self._mcp_call_in_progress <= 0:
                     break
                 stall_count += 1
@@ -768,13 +779,13 @@ class MCPVoiceAssistant:
         self._mcp_stall_task = None
     # </mcp_stall_detection>
 
-    async def _handle_mcp_call_completed(self, mcp_call_completed_event, connection):
+    async def _handle_mcp_call_completed(self, mcp_call_completed_event, connection, *, is_stale=False):
         """Handle MCP call completed events."""
         if not isinstance(mcp_call_completed_event, ServerEventResponseMcpCallCompleted):
             logger.error("Expected ServerEventResponseMcpCallCompleted")
             return
 
-        logger.info("MCP call completed for %s", mcp_call_completed_event.item_id)
+        logger.info("MCP call completed for %s (stale=%s)", mcp_call_completed_event.item_id, is_stale)
         print("✅ MCP tool call completed successfully")
 
         # Clean up item mapping
@@ -783,6 +794,23 @@ class MCPVoiceAssistant:
         # Reset approval counter if no more approvals are pending (task complete)
         if self._pending_approval is None and not self._approval_queue:
             self._approval_call_count.clear()
+
+        # If the user moved on during this call, tell the model it's a late result
+        if is_stale:
+            try:
+                await connection.conversation.item.create(
+                    item=MessageItem(
+                        role="system",
+                        content=[InputTextContentPart(
+                            text="This tool result is from an earlier request. The user has "
+                                 "since moved on. Briefly introduce it as a late result, e.g. "
+                                 "'By the way, those results from earlier just came in...' "
+                                 "then share the key findings concisely."
+                        )],
+                    )
+                )
+            except Exception as e:
+                logger.warning("Failed to inject late-result context: %s", e)
 
         # Kick the model to incorporate and speak the MCP output.
         # If a response is already active, defer to RESPONSE_DONE.
@@ -876,7 +904,9 @@ def parse_arguments():
             "Some tools require user approval before they can be used. When you receive a "
             "system message asking you to request permission, you MUST clearly ask the user "
             "for their explicit approval before proceeding. Always wait for the user to say "
-            "yes or no. Never skip the approval question or assume permission is granted.",
+            "yes or no. Never skip the approval question or assume permission is granted. "
+            "If a tool result arrives after the conversation has moved to a different topic, "
+            "briefly introduce it as a late result before sharing the findings.",
         ),
     )
     parser.add_argument(
