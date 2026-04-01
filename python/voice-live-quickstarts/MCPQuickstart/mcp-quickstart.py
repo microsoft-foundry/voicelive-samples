@@ -591,6 +591,21 @@ class MCPVoiceAssistant:
             logger.error("MCP approval item missing ID")
             return
 
+        # Auto-deny after too many calls to the same server in one task.
+        # This prevents infinite tool-call loops in voice UX.
+        MAX_APPROVAL_CALLS_PER_TASK = 3
+        current_count = self._approval_call_count.get(server_label, 0)
+        if current_count >= MAX_APPROVAL_CALLS_PER_TASK:
+            logger.info("Auto-denying %s — reached %d calls this task", function_name, current_count)
+            print(f"   Auto-denied: {server_label}/{function_name} (max {MAX_APPROVAL_CALLS_PER_TASK} calls reached)")
+            try:
+                await connection.conversation.item.create(
+                    item=MCPApprovalResponseRequestItem(approval_request_id=approval_id, approve=False)
+                )
+            except Exception as e:
+                logger.warning("Failed to send auto-deny: %s", e)
+            return
+
         # If another approval is already pending, queue this one
         if self._pending_approval is not None:
             logger.info("Queuing approval for %s — another is already pending", function_name)
