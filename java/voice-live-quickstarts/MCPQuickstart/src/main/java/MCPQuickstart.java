@@ -356,8 +356,11 @@ public final class MCPQuickstart {
             .setCreateResponse(true);
 
         // Enable input audio transcription so we receive user speech as text
+        AudioInputTranscriptionOptionsModel transcriptionModel = config.model.toLowerCase().contains("realtime")
+            ? AudioInputTranscriptionOptionsModel.WHISPER_1
+            : AudioInputTranscriptionOptionsModel.fromString("azure-speech");
         AudioInputTranscriptionOptions transcriptionOptions =
-            new AudioInputTranscriptionOptions(AudioInputTranscriptionOptionsModel.WHISPER_1);
+            new AudioInputTranscriptionOptions(transcriptionModel);
 
         VoiceLiveSessionOptions options = new VoiceLiveSessionOptions()
             .setInstructions(config.instructions)
@@ -466,7 +469,7 @@ public final class MCPQuickstart {
                         // suppress
                     } else if (msg.toLowerCase().contains("interim response")) {
                         // non-fatal
-                    } else if (msg.toLowerCase().contains("active response in progress")) {
+                    } else if (msg.toLowerCase().contains("active response")) {
                         // expected during MCP flow
                     } else {
                         System.out.println("❌ Error: " + msg);

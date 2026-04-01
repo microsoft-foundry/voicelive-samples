@@ -326,7 +326,7 @@ class MCPVoiceAssistant {
       },
       inputAudioEchoCancellation: { type: "server_echo_cancellation" },
       inputAudioNoiseReduction: { type: "azure_deep_noise_suppression" },
-      inputAudioTranscription: { model: "azure-speech" },
+      inputAudioTranscription: { model: this.model.toLowerCase().includes("realtime") ? "whisper-1" : "azure-speech" },
       tools: mcpServers,
     });
 
@@ -436,7 +436,7 @@ class MCPVoiceAssistant {
           console.log("[session] Interim response not supported (non-fatal)");
           return;
         }
-        if (msg.toLowerCase().includes("active response in progress")) return;
+        if (msg.toLowerCase().includes("active response")) return;
         console.error(`❌ VoiceLive error: ${msg}`);
       },
 

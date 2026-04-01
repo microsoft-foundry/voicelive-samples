@@ -261,7 +261,8 @@ namespace Azure.AI.VoiceLive.Samples
             // Enable input audio transcription so we receive
             // SessionUpdateConversationItemInputAudioTranscriptionCompleted events
             // (required for the voice-based approval flow).
-            sessionOptions.InputAudioTranscription = new AudioInputTranscriptionOptions("azure-speech");
+            sessionOptions.InputAudioTranscription = new AudioInputTranscriptionOptions(
+                _model.Contains("realtime", StringComparison.OrdinalIgnoreCase) ? "whisper-1" : "azure-speech");
 
             sessionOptions.Modalities.Clear();
             sessionOptions.Modalities.Add(InteractionModality.Text);
