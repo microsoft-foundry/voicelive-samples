@@ -341,7 +341,7 @@ class MCPVoiceAssistant:
                 print("\n" + "=" * 70)
                 print("🎤 VOICE ASSISTANT WITH MCP READY")
                 print("Try saying:")
-                print("  • 'Can you summarize the GitHub repo azure-sdk-for-python?'")
+                print("  • 'What is the GitHub repo fastapi about?'")
                 print("  • 'Search the Azure documentation for Voice Live API.'")
                 print("You may need to approve some MCP tool calls in the console.")
                 print("Press Ctrl+C to exit")

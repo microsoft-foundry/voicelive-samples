@@ -189,7 +189,7 @@ namespace Azure.AI.VoiceLive.Samples
                 Console.WriteLine(new string('=', 70));
                 Console.WriteLine("🎤 VOICE ASSISTANT WITH MCP READY");
                 Console.WriteLine("Try saying:");
-                Console.WriteLine("  • 'Can you summarize the GitHub repo azure-sdk-for-net?'");
+                Console.WriteLine("  • 'What is the GitHub repo fastapi about?'");
                 Console.WriteLine("  • 'Search the Azure documentation for Voice Live API.'");
                 Console.WriteLine("You may need to approve some MCP tool calls in the console.");
                 Console.WriteLine("Press Ctrl+C to exit");
