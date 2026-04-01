@@ -373,10 +373,10 @@ class MCPVoiceAssistant {
         console.log("🎤 Listening...");
         this._audio.skipPendingAudio();
 
-        // Only reset approval counter if no approval pending
-        if (this._pendingApproval === null) {
-          this._approvalCallCount = {};
-        }
+        // Do NOT reset _approvalCallCount here — the counter should only
+        // reset on task completion (in onResponseMcpCallCompleted when no
+        // pending/queued approvals remain) or on denial (in _resolveVoiceApproval).
+        // Resetting on every speech-start would let the model retry denied calls.
 
         if (this._activeResponse && !this._responseApiDone) {
           try {
@@ -391,7 +391,7 @@ class MCPVoiceAssistant {
 
         if (this._mcpCallInProgress > 0 && this._pendingApproval === null) {
           try {
-            await session.sendEvent({ type: "conversation.item.create", item: { type: "message", role: "system", content: [{ type: "input_text", text: "A tool call is still running. The user just interrupted. Briefly ask them: do you want to keep waiting for the result, or skip it and move on? Keep it short." }] } });
+            await session.addConversationItem({ type: "message", role: "system", content: [{ type: "input_text", text: "A tool call is still running. The user just interrupted. Briefly ask them: do you want to keep waiting for the result, or skip it and move on? Keep it short." }] });
           } catch {}
         }
       },
@@ -498,7 +498,7 @@ class MCPVoiceAssistant {
           console.log(`🔧 MCP tool call: ${sl}/${fn}`);
           if (!this._pendingApproval && !this._approvalServers.has(sl)) {
             try {
-              await session.sendEvent({ type: "conversation.item.create", item: { type: "message", role: "system", content: [{ type: "input_text", text: "Briefly tell the user you're looking something up. One short sentence only." }] } });
+              await session.addConversationItem({ type: "message", role: "system", content: [{ type: "input_text", text: "Briefly tell the user you're looking something up. One short sentence only." }] });
               await session.sendEvent({ type: "response.create" });
             } catch {}
           }
@@ -576,13 +576,10 @@ class MCPVoiceAssistant {
     }
 
     try {
-      await session.sendEvent({
-        type: "conversation.item.create",
-        item: {
-          type: "message",
-          role: "system",
-          content: [{ type: "input_text", text: prompt }],
-        },
+      await session.addConversationItem({
+        type: "message",
+        role: "system",
+        content: [{ type: "input_text", text: prompt }],
       });
       await session.sendEvent({ type: "response.create" });
     } catch (err) {
@@ -656,7 +653,7 @@ class MCPVoiceAssistant {
         ? "The tool call is taking longer than expected. Briefly let the user know you're still waiting for results."
         : "The tool call is taking very long. Ask the user: would you like to keep waiting, or should I move on and answer with what I know? Keep it short.";
       try {
-        await session.sendEvent({ type: "conversation.item.create", item: { type: "message", role: "system", content: [{ type: "input_text", text: msg }] } });
+        await session.addConversationItem({ type: "message", role: "system", content: [{ type: "input_text", text: msg }] });
         await session.sendEvent({ type: "response.create" });
       } catch (e) {
         if (e?.message?.toLowerCase().includes("active response")) {

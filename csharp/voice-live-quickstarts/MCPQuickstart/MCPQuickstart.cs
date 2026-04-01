@@ -258,6 +258,11 @@ namespace Azure.AI.VoiceLive.Samples
                 TurnDetection = turnDetection
             };
 
+            // Enable input audio transcription so we receive
+            // SessionUpdateConversationItemInputAudioTranscriptionCompleted events
+            // (required for the voice-based approval flow).
+            sessionOptions.InputAudioTranscription = new AudioInputTranscriptionOptions("azure-speech");
+
             sessionOptions.Modalities.Clear();
             sessionOptions.Modalities.Add(InteractionModality.Text);
             sessionOptions.Modalities.Add(InteractionModality.Audio);
@@ -315,9 +320,11 @@ namespace Azure.AI.VoiceLive.Samples
                         try { await _session!.ClearStreamingAudioAsync(cancellationToken).ConfigureAwait(false); }
                         catch { }
                     }
-                    // Reset approval call counter only when no approval is pending
-                    if (_pendingApproval == null)
-                        _approvalCallCount.Clear();
+                    // Do NOT reset _approvalCallCount here — the counter should only
+                    // reset on task completion (in MCP-call-completed when no pending/queued
+                    // approvals remain) or on explicit denial (in ResolveVoiceApprovalAsync).
+                    // Resetting on every speech-start would let the model retry denied calls.
+
                     // If an MCP call is running, ask the user if they want to wait or skip
                     if (_mcpCallInProgress > 0 && _pendingApproval == null)
                     {
