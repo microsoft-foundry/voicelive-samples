@@ -7,7 +7,7 @@
     "@azure/ai-voicelive": "1.0.0-beta.3",
     "@azure/ai-agents": "1.2.0-beta.2",
     "@azure/identity": "^4.6.0",
-    "dotenv": "^16.4.7"
+    "dotenv": "^17.4.0"
   },
   "optionalDependencies": {
     "node-record-lpcm16": "^1.0.1",
