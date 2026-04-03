@@ -40,7 +40,7 @@
     "@types/react-dom": "^19",
     "baseline-browser-mapping": "^2.9.19",
     "eslint": "^9.39.2",
-    "eslint-config-next": "16.1.6",
+    "eslint-config-next": "16.2.2",
     "postcss": "^8",
     "prettier": "^3.8.1",
     "tailwindcss": "^4.1.18",
