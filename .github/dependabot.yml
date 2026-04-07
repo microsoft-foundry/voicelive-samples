@@ -1,4 +1,10 @@
 version: 2
+
+# Config policy:
+# - Ignore ALL major version bumps (handled as coordinated manual upgrades)
+# - Group minor/patch updates per directory into a single PR
+# - Limit open PRs to 5 per directory to reduce noise
+
 updates:
   # === Python ===
 
@@ -6,23 +12,35 @@ updates:
     directory: "/python/voice-live-avatar"
     schedule:
       interval: "weekly"
-    open-pull-requests-limit: 10
+    open-pull-requests-limit: 5
     reviewers:
       - "microsoft-foundry/voicelive-repo-maintainers"
     labels:
       - "dependencies"
       - "python"
+    groups:
+      python-minor-patch:
+        update-types: ["minor", "patch"]
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
 
   - package-ecosystem: "pip"
     directory: "/python/voice-live-quickstarts"
     schedule:
       interval: "weekly"
-    open-pull-requests-limit: 10
+    open-pull-requests-limit: 5
     reviewers:
       - "microsoft-foundry/voicelive-repo-maintainers"
     labels:
       - "dependencies"
       - "python"
+    groups:
+      python-minor-patch:
+        update-types: ["minor", "patch"]
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
 
   - package-ecosystem: "pip"
     directory: "/python/voice-live-quickstarts/AgentsNewQuickstart"
@@ -34,28 +52,46 @@ updates:
     labels:
       - "dependencies"
       - "python"
+    groups:
+      python-minor-patch:
+        update-types: ["minor", "patch"]
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
 
   - package-ecosystem: "pip"
     directory: "/python/voice-live-voicerag-assistant/app/backend"
     schedule:
       interval: "weekly"
-    open-pull-requests-limit: 10
+    open-pull-requests-limit: 5
     reviewers:
       - "microsoft-foundry/voicelive-repo-maintainers"
     labels:
       - "dependencies"
       - "python"
+    groups:
+      python-minor-patch:
+        update-types: ["minor", "patch"]
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
 
   - package-ecosystem: "pip"
     directory: "/voice-live-universal-assistant/python"
     schedule:
       interval: "weekly"
-    open-pull-requests-limit: 10
+    open-pull-requests-limit: 5
     reviewers:
       - "microsoft-foundry/voicelive-repo-maintainers"
     labels:
       - "dependencies"
       - "python"
+    groups:
+      python-minor-patch:
+        update-types: ["minor", "patch"]
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
 
   # === JavaScript / npm ===
 
@@ -63,56 +99,86 @@ updates:
     directory: "/javascript/basic-web-voice-assistant"
     schedule:
       interval: "weekly"
-    open-pull-requests-limit: 10
+    open-pull-requests-limit: 5
     reviewers:
       - "microsoft-foundry/voicelive-repo-maintainers"
     labels:
       - "dependencies"
       - "javascript"
+    groups:
+      npm-minor-patch:
+        update-types: ["minor", "patch"]
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
 
   - package-ecosystem: "npm"
     directory: "/javascript/voice-live-car-demo"
     schedule:
       interval: "weekly"
-    open-pull-requests-limit: 10
+    open-pull-requests-limit: 5
     reviewers:
       - "microsoft-foundry/voicelive-repo-maintainers"
     labels:
       - "dependencies"
       - "javascript"
+    groups:
+      npm-minor-patch:
+        update-types: ["minor", "patch"]
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
 
   - package-ecosystem: "npm"
     directory: "/javascript/voice-live-interpreter-demo"
     schedule:
       interval: "weekly"
-    open-pull-requests-limit: 10
+    open-pull-requests-limit: 5
     reviewers:
       - "microsoft-foundry/voicelive-repo-maintainers"
     labels:
       - "dependencies"
       - "javascript"
+    groups:
+      npm-minor-patch:
+        update-types: ["minor", "patch"]
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
 
   - package-ecosystem: "npm"
     directory: "/javascript/voice-live-trader-demo"
     schedule:
       interval: "weekly"
-    open-pull-requests-limit: 10
+    open-pull-requests-limit: 5
     reviewers:
       - "microsoft-foundry/voicelive-repo-maintainers"
     labels:
       - "dependencies"
       - "javascript"
+    groups:
+      npm-minor-patch:
+        update-types: ["minor", "patch"]
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
 
   - package-ecosystem: "npm"
     directory: "/javascript/voice-live-avatar"
     schedule:
       interval: "weekly"
-    open-pull-requests-limit: 10
+    open-pull-requests-limit: 5
     reviewers:
       - "microsoft-foundry/voicelive-repo-maintainers"
     labels:
       - "dependencies"
       - "javascript"
+    groups:
+      npm-minor-patch:
+        update-types: ["minor", "patch"]
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
 
   - package-ecosystem: "npm"
     directory: "/javascript/voice-live-quickstarts/ModelQuickstart"
@@ -124,6 +190,12 @@ updates:
     labels:
       - "dependencies"
       - "javascript"
+    groups:
+      npm-minor-patch:
+        update-types: ["minor", "patch"]
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
 
   - package-ecosystem: "npm"
     directory: "/javascript/voice-live-quickstarts/AgentsNewQuickstart"
@@ -135,39 +207,63 @@ updates:
     labels:
       - "dependencies"
       - "javascript"
+    groups:
+      npm-minor-patch:
+        update-types: ["minor", "patch"]
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
 
   - package-ecosystem: "npm"
     directory: "/voice-live-universal-assistant/javascript"
     schedule:
       interval: "weekly"
-    open-pull-requests-limit: 10
+    open-pull-requests-limit: 5
     reviewers:
       - "microsoft-foundry/voicelive-repo-maintainers"
     labels:
       - "dependencies"
       - "javascript"
+    groups:
+      npm-minor-patch:
+        update-types: ["minor", "patch"]
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
 
   - package-ecosystem: "npm"
     directory: "/voice-live-universal-assistant/frontend"
     schedule:
       interval: "weekly"
-    open-pull-requests-limit: 10
+    open-pull-requests-limit: 5
     reviewers:
       - "microsoft-foundry/voicelive-repo-maintainers"
     labels:
       - "dependencies"
       - "javascript"
+    groups:
+      npm-minor-patch:
+        update-types: ["minor", "patch"]
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
 
   - package-ecosystem: "npm"
     directory: "/python/voice-live-voicerag-assistant/app/frontend"
     schedule:
       interval: "weekly"
-    open-pull-requests-limit: 10
+    open-pull-requests-limit: 5
     reviewers:
       - "microsoft-foundry/voicelive-repo-maintainers"
     labels:
       - "dependencies"
       - "javascript"
+    groups:
+      npm-minor-patch:
+        update-types: ["minor", "patch"]
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
 
   # === C# / NuGet ===
 
@@ -181,6 +277,12 @@ updates:
     labels:
       - "dependencies"
       - "csharp"
+    groups:
+      nuget-minor-patch:
+        update-types: ["minor", "patch"]
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
 
   - package-ecosystem: "nuget"
     directory: "/csharp/voice-live-quickstarts/AgentQuickstart"
@@ -192,6 +294,12 @@ updates:
     labels:
       - "dependencies"
       - "csharp"
+    groups:
+      nuget-minor-patch:
+        update-types: ["minor", "patch"]
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
 
   - package-ecosystem: "nuget"
     directory: "/csharp/voice-live-quickstarts/BringYourOwnModelQuickstart"
@@ -203,6 +311,12 @@ updates:
     labels:
       - "dependencies"
       - "csharp"
+    groups:
+      nuget-minor-patch:
+        update-types: ["minor", "patch"]
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
 
   - package-ecosystem: "nuget"
     directory: "/csharp/voice-live-quickstarts/AgentsNewQuickstart"
@@ -214,6 +328,12 @@ updates:
     labels:
       - "dependencies"
       - "csharp"
+    groups:
+      nuget-minor-patch:
+        update-types: ["minor", "patch"]
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
 
   - package-ecosystem: "nuget"
     directory: "/csharp/CustomerServiceBot"
@@ -225,6 +345,12 @@ updates:
     labels:
       - "dependencies"
       - "csharp"
+    groups:
+      nuget-minor-patch:
+        update-types: ["minor", "patch"]
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
 
   - package-ecosystem: "nuget"
     directory: "/voice-live-universal-assistant/csharp"
@@ -236,6 +362,12 @@ updates:
     labels:
       - "dependencies"
       - "csharp"
+    groups:
+      nuget-minor-patch:
+        update-types: ["minor", "patch"]
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
 
   # === Java / Maven ===
 
@@ -249,6 +381,12 @@ updates:
     labels:
       - "dependencies"
       - "java"
+    groups:
+      maven-minor-patch:
+        update-types: ["minor", "patch"]
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
 
   - package-ecosystem: "maven"
     directory: "/voice-live-universal-assistant/java"
@@ -260,3 +398,9 @@ updates:
     labels:
       - "dependencies"
       - "java"
+    groups:
+      maven-minor-patch:
+        update-types: ["minor", "patch"]
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
