@@ -306,9 +306,9 @@ namespace Azure.AI.VoiceLive.Samples
         {
             switch (serverEvent)
             {
-                case SessionUpdateSessionUpdated:
+                case SessionUpdateSessionUpdated sessionUpdated:
                     _logger.LogInformation("Session updated");
-                    WriteLog($"SessionID: {_session?.SessionId}");
+                    WriteLog($"SessionID: {sessionUpdated.Session?.Id}");
                     WriteLog($"Model: {_model}");
                     WriteLog($"Voice: {_voice}");
                     WriteLog("");
@@ -428,7 +428,7 @@ namespace Azure.AI.VoiceLive.Samples
                         else
                         {
                             Console.WriteLine($"❌ Error: {msg}");
-                        WriteLog($"ERROR: {msg}");
+                            WriteLog($"ERROR: {msg}");
                         }
                     }
                     _responseActive = false;
@@ -483,7 +483,7 @@ namespace Azure.AI.VoiceLive.Samples
                         bool isStale = _staleMcpItems.Remove(itemId);
                         _logger.LogInformation("MCP call completed for {ItemId} (stale={IsStale})", itemId, isStale);
                         Console.WriteLine("✅ MCP tool call completed successfully");
-                        WriteLog($"MCP call completed: {itemId} (stale={isStale});");
+                        WriteLog($"MCP call completed: {itemId} (stale={isStale})");
 
                         // Clean up item mapping
                         _mcpItemToServer.Remove(itemId);

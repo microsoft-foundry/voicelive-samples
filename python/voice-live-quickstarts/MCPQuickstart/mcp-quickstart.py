@@ -89,7 +89,7 @@ timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
 
 # Conversation log filename (separate from debug log)
 _script_dir = os.path.dirname(os.path.abspath(__file__))
-conversation_logfilename = f"{timestamp}_conversation.log"
+conversation_logfilename = f"conversation_{timestamp}.log"
 
 logging.basicConfig(
     filename=f'logs/{timestamp}_voicelive.log',
@@ -987,9 +987,10 @@ def parse_arguments():
 async def write_conversation_log(message: str) -> None:
     """Write a message to the conversation log."""
     log_path = os.path.join(_script_dir, 'logs', conversation_logfilename)
-    await asyncio.to_thread(
-        lambda: open(log_path, 'a', encoding='utf-8').write(message + "\n")
-    )
+    def _write():
+        with open(log_path, 'a', encoding='utf-8') as f:
+            f.write(message + "\n")
+    await asyncio.to_thread(_write)
 
 
 def main():
