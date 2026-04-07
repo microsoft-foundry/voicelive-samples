@@ -356,7 +356,7 @@ class VoiceSessionHandler:
                     "rotation_x": photo_scene.get("rotationX", 0) * math.pi / 180,
                     "rotation_y": photo_scene.get("rotationY", 0) * math.pi / 180,
                     "rotation_z": photo_scene.get("rotationZ", 0) * math.pi / 180,
-                    "amplitude": photo_scene.get("amplitude", 100) / 100,
+                    "amplitude": photo_scene.get("amplitude", 60) / 100,
                 }
 
         # Add output_protocol (not in SDK model, inject as additional property)
