@@ -741,6 +741,7 @@ class MCPVoiceAssistant {
     }
   }
 
+  // <voice_approval_transcription>
   async _resolveVoiceApproval(transcript, session) {
     if (this._pendingApproval === null) return;
 
@@ -814,8 +815,11 @@ class MCPVoiceAssistant {
       this._approvalPromptNeeded = true;
     }
   }
+  // </voice_approval_transcription>
+
   // </handle_approval>
 
+  // <mcp_stall_detection>
   _startMcpStallTimer(session) {
     this._cancelMcpStallTimer();
     let stallCount = 0;
@@ -849,6 +853,7 @@ class MCPVoiceAssistant {
       this._mcpStallTimer = null;
     }
   }
+  // </mcp_stall_detection>
 
   async start() {
     const client = new VoiceLiveClient(this.endpoint, this.credential, {

@@ -740,6 +740,7 @@ namespace Azure.AI.VoiceLive.Samples
             }
         }
 
+        // <voice_approval_transcription>
         /// <summary>
         /// Interpret the user's spoken response as approval or denial.
         /// </summary>
@@ -822,6 +823,7 @@ namespace Azure.AI.VoiceLive.Samples
                 _approvalPromptNeeded = true;
             }
         }
+        // </voice_approval_transcription>
         // </handle_approval>
 
         // <mcp_stall_detection>

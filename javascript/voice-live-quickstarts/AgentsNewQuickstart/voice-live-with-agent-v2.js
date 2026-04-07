@@ -1,6 +1,7 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the MIT License.
 
+// <all>
 // Voice Live with Foundry Agent Service v2 - Node.js Console Voice Assistant
 // Uses @azure/ai-voicelive SDK with handler-based event subscription pattern.
 
@@ -34,7 +35,7 @@ function writeConversationLog(message) {
 // ---------------------------------------------------------------------------
 // Audio helpers
 // ---------------------------------------------------------------------------
-
+// <audio_processor>
 /**
  * AudioProcessor manages microphone capture via node-record-lpcm16
  * and playback via the speaker npm package. Audio format: 24 kHz, 16-bit, mono.
@@ -236,10 +237,12 @@ class AudioProcessor {
     this._speaker.on("error", () => {});
   }
 }
+// </audio_processor>
 
 // ---------------------------------------------------------------------------
 // BasicVoiceAssistant
 // ---------------------------------------------------------------------------
+// <voice_assistant>
 class BasicVoiceAssistant {
   /**
    * @param {object} opts
@@ -255,6 +258,7 @@ class BasicVoiceAssistant {
    * @param {string} [opts.greetingText]
    * @param {boolean} [opts.noAudio]
    */
+  // <agent_config>
   constructor(opts) {
     this.endpoint = opts.endpoint;
     this.credential = opts.credential;
@@ -280,7 +284,9 @@ class BasicVoiceAssistant {
     this._activeResponse = false;
     this._responseApiDone = false;
   }
+  // </agent_config>
 
+  // <start_session>
   /** Connect, subscribe to events, and run until interrupted. */
   async start() {
     const client = new VoiceLiveClient(this.endpoint, this.credential);
@@ -294,7 +300,9 @@ class BasicVoiceAssistant {
 
     // Subscribe to VoiceLive events BEFORE connecting, so the
     // SESSION_UPDATED event is not missed.
+    // <handle_events>
     const subscription = session.subscribe({
+      // <session_updated_metadata>
       onSessionUpdated: async (event, context) => {
         const s = event.session;
         const agent = s?.agent;
@@ -312,6 +320,7 @@ class BasicVoiceAssistant {
           ].join("\n"),
         );
       },
+      // </session_updated_metadata>
 
       onConversationItemInputAudioTranscriptionCompleted: async (event) => {
         const transcript = event.transcript ?? "";
@@ -386,6 +395,7 @@ class BasicVoiceAssistant {
         console.log(`[event] Conversation item created: ${event.item?.id ?? ""}`);
       },
     });
+    // </handle_events>
 
     // Connect after subscribing so SESSION_UPDATED is not missed
     await session.connect();
@@ -447,7 +457,9 @@ class BasicVoiceAssistant {
       // ignore dispose errors during shutdown
     }
   }
+  // </start_session>
 
+  // <proactive_greeting>
   /**
    * Send a proactive greeting when the session starts.
    * Supports pre-defined (--greeting-text) or LLM-generated (default).
@@ -490,7 +502,9 @@ class BasicVoiceAssistant {
       }
     }
   }
+  // </proactive_greeting>
 
+  // <setup_session>
   /** Configure session modalities, audio format, and interim response. */
   async _setupSession() {
     console.log("[session] Configuring session ...");
@@ -509,7 +523,9 @@ class BasicVoiceAssistant {
     });
     console.log("[session] Session configuration sent");
   }
+  // </setup_session>
 }
+// </voice_assistant>
 
 // ---------------------------------------------------------------------------
 // CLI helpers
@@ -640,6 +656,7 @@ async function listAudioDevices() {
 // ---------------------------------------------------------------------------
 // Main
 // ---------------------------------------------------------------------------
+// <main>
 async function main() {
   let args;
   try {
@@ -713,6 +730,8 @@ async function main() {
   }
 }
 
+// </main>
+
 console.log("🎙️  Basic Foundry Voice Agent with Azure VoiceLive SDK (Agent Mode)");
 console.log("=".repeat(65));
 main().then(
@@ -722,3 +741,4 @@ main().then(
     process.exit(1);
   },
 );
+// </all>

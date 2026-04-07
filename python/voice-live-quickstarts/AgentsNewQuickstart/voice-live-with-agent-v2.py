@@ -1,3 +1,4 @@
+# <all>
 from __future__ import annotations
 import os
 import sys
@@ -59,6 +60,7 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+# <audio_processor>
 class AudioProcessor:
     """
     Handles real-time audio capture and playback for the voice assistant.
@@ -235,7 +237,9 @@ class AudioProcessor:
             self.audio.terminate()
 
         logger.info("Audio processor cleaned up")
+# </audio_processor>
 
+# <voice_assistant>
 class BasicVoiceAssistant:
     """
     Basic voice assistant implementing the VoiceLive SDK patterns with Foundry Agent.
@@ -244,6 +248,7 @@ class BasicVoiceAssistant:
     This sample also demonstrates how to collect a conversation log of user and agent interactions.
     """
 
+    # <agent_config>
     def __init__(
         self,
         endpoint: str,
@@ -275,7 +280,9 @@ class BasicVoiceAssistant:
         self.greeting_sent = False
         self._active_response = False
         self._response_api_done = False
+    # </agent_config>
 
+    # <start_session>
     async def start(self) -> None:
         """Start the voice assistant session."""
         try:
@@ -321,7 +328,9 @@ class BasicVoiceAssistant:
         finally:
             if self.audio_processor:
                 self.audio_processor.shutdown()
+    # </start_session>
 
+    # <setup_session>
     async def _setup_session(self) -> None:
         """Configure the VoiceLive session for audio conversation."""
         logger.info("Setting up voice conversation session...")
@@ -353,7 +362,9 @@ class BasicVoiceAssistant:
         await conn.session.update(session=session_config)
 
         logger.info("Session configuration sent")
+    # </setup_session>
 
+    # <process_events>
     async def _process_events(self) -> None:
         """Process events from the VoiceLive connection."""
         try:
@@ -365,7 +376,9 @@ class BasicVoiceAssistant:
         except Exception:
             logger.exception("Error processing events")
             raise
+    # </process_events>
 
+    # <handle_events>
     async def _handle_event(self, event: Any) -> None:
         """Handle different types of events from VoiceLive."""
         logger.debug("Received event: %s", event.type)
@@ -375,6 +388,7 @@ class BasicVoiceAssistant:
             raise RuntimeError("AudioProcessor and Connection must be initialized")
 
         if event.type == ServerEventType.SESSION_UPDATED:
+            # <session_updated_metadata>
             logger.info("Session ready: %s", event.session.id)
             s, a, v = event.session, event.session.agent, event.session.voice
             await write_conversation_log("\n".join([
@@ -383,8 +397,10 @@ class BasicVoiceAssistant:
                 f"Voice Name: {v['name']}", f"Voice Type: {v['type']}",
                 f"Voice Temperature: {v['temperature']}", ""
             ]))
+            # </session_updated_metadata>
             self.session_ready = True
 
+            # <proactive_greeting>
             # Invoke Proactive greeting
             if not self.greeting_sent:
                 self.greeting_sent = True
@@ -403,6 +419,7 @@ class BasicVoiceAssistant:
                     await conn.response.create()
                 except Exception:
                     logger.exception("Failed to send proactive greeting request")
+            # </proactive_greeting>
 
             # Start audio capture once session is ready
             ap.start_capture()
@@ -471,6 +488,8 @@ class BasicVoiceAssistant:
 
         else:
             logger.debug("Unhandled event type: %s", event.type)
+    # </handle_events>
+# </voice_assistant>
 
 async def write_conversation_log(message: str) -> None:
     """Write a message to the conversation log."""
@@ -479,6 +498,7 @@ async def write_conversation_log(message: str) -> None:
         lambda: open(log_path, 'a', encoding='utf-8').write(message + "\n")
     )
 
+# <main>
 def main() -> None:
     """Main function."""
     endpoint = os.environ.get("VOICELIVE_ENDPOINT", "")
@@ -530,7 +550,9 @@ def main() -> None:
         print("\n👋 Voice assistant shut down. Goodbye!")
     except Exception as e:
         print("Fatal Error: ", e)
+# </main>
 
+# <check_audio>
 def _check_audio_devices() -> None:
     """Verify audio input/output devices are available."""
     p = pyaudio.PyAudio()
@@ -546,6 +568,7 @@ def _check_audio_devices() -> None:
             sys.exit("❌ No audio output devices found. Please check your speakers.")
     finally:
         p.terminate()
+# </check_audio>
 
 if __name__ == "__main__":
     try:
@@ -558,3 +581,4 @@ if __name__ == "__main__":
     print("🎙️ Basic Foundry Voice Agent with Azure VoiceLive SDK (Agent Mode)")
     print("=" * 65)
     main()
+# </all>
