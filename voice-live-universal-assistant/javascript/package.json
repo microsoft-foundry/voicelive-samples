@@ -13,7 +13,7 @@
     "@azure/identity": "^4.6.0",
     "@azure/core-auth": "^1.9.0",
     "dotenv": "^17.4.0",
-    "express": "^4.21.0",
+    "express": "^5.2.1",
     "express-ws": "^5.0.2"
   },
   "engines": {
