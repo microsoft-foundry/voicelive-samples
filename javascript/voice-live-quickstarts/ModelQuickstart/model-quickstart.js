@@ -343,7 +343,7 @@ class AudioProcessor {
 
     if (this._speaker && !this._speaker.destroyed) {
       try {
-        this._speaker.end();
+        this._speaker.destroy();
       } catch {
         // no-op
       }

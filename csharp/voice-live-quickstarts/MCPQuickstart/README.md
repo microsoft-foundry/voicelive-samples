@@ -1,4 +1,4 @@
-# MCP Quickstart
+# C# – MCP Quickstart
 
 > **For common setup instructions, troubleshooting, and detailed information, see the [C# Samples README](../../README.md)**
 
@@ -118,13 +118,11 @@ Not all MCP servers are well-suited for voice UX. Servers that respond quickly (
 
 ## Command Line Options
 
-```powershell
-# Run with API key (from appsettings.json)
-dotnet run
+| Flag | Description |
+|---|---|
+| `--use-token-credential` | Use `DefaultAzureCredential` instead of API key |
 
-# Run with Azure authentication
-dotnet run -- --use-token-credential
-```
+All other settings are configured via `appsettings.json`.
 
 ## Sample Trigger Phrases
 
@@ -132,6 +130,15 @@ dotnet run -- --use-token-credential
 |---|---|---|---|
 | *"What is the GitHub repo fastapi about?"* | DeepWiki | Auto (`never`) | Assistant announces lookup, calls tools, speaks results |
 | *"Search the Azure documentation for Voice Live API"* | Azure Docs | Voice prompt (`always`) | Assistant asks *"Do you approve?"*, waits for your *yes* or *no* |
+
+## How It Works
+
+1. **MCP Server Definitions**: `VoiceLiveMcpServerDefinition` instances added to the session tools list
+2. **Session Configuration**: `Session.Update` with model, voice, VAD, and MCP tools
+3. **Tool Discovery**: Voice Live connects to each MCP server and discovers available tools
+4. **Tool Announcements**: Auto-approved tool calls trigger a brief spoken acknowledgement
+5. **Voice Approval**: For `require_approval="always"` servers, a system message is injected prompting the model to ask verbally. The user's spoken response is parsed for *yes*/*no* using word-boundary regex
+6. **Result Delivery**: After MCP call completion, `response.create` kicks the model to speak the results
 
 ## Troubleshooting
 

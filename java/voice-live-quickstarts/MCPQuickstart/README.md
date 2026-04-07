@@ -1,4 +1,4 @@
-# MCP Quickstart
+# Java – MCP Quickstart
 
 > **For common setup instructions, troubleshooting, and detailed information, see the [Java Samples README](../../README.md)**
 
@@ -120,11 +120,13 @@ Not all MCP servers are well-suited for voice UX. Servers that respond quickly (
 
 ## Command Line Options
 
-- `--api-key`: Azure VoiceLive API key (overrides application.properties)
-- `--endpoint`: Azure VoiceLive endpoint URL (overrides application.properties)
-- `--model`: VoiceLive model to use (default: `gpt-realtime`)
-- `--voice`: Voice for the assistant (default: `en-US-Ava:DragonHDLatestNeural`)
-- `--use-token-credential`: Use Azure authentication instead of API key
+| Flag | Description |
+|---|---|
+| `--api-key` | Azure VoiceLive API key (overrides `application.properties`) |
+| `--endpoint` | Azure VoiceLive endpoint URL (overrides `application.properties`) |
+| `--model` | VoiceLive model to use (default: `gpt-realtime`) |
+| `--voice` | Voice for the assistant (default: `en-US-Ava:DragonHDLatestNeural`) |
+| `--use-token-credential` | Use Azure authentication instead of API key |
 
 ## Sample Trigger Phrases
 
@@ -132,6 +134,15 @@ Not all MCP servers are well-suited for voice UX. Servers that respond quickly (
 |---|---|---|---|
 | *"What is the GitHub repo fastapi about?"* | DeepWiki | Auto (`never`) | Assistant announces lookup, calls tools, speaks results |
 | *"Search the Azure documentation for Voice Live API"* | Azure Docs | Voice prompt (`always`) | Assistant asks *"Do you approve?"*, waits for your *yes* or *no* |
+
+## How It Works
+
+1. **MCP Server Definitions**: `MCPServer` instances added to the session tools list
+2. **Session Configuration**: `session.update` with model, voice, VAD, and MCP tools
+3. **Tool Discovery**: Voice Live connects to each MCP server and discovers available tools
+4. **Tool Announcements**: Auto-approved tool calls trigger a brief spoken acknowledgement
+5. **Voice Approval**: For `require_approval="always"` servers, a system message is injected prompting the model to ask verbally. The user's spoken response is parsed for *yes*/*no* using word-boundary regex
+6. **Result Delivery**: After MCP call completion, `response.create` kicks the model to speak the results
 
 ## Troubleshooting
 
@@ -148,7 +159,7 @@ For more troubleshooting guidance, see the [Java Samples README](../../README.md
 
 ## Additional Resources
 
-- [Azure AI Speech - Voice Live Documentation](https://learn.microsoft.com/azure/ai-services/speech-service/voice-live)
+- [Voice Live Documentation](https://learn.microsoft.com/azure/ai-services/speech-service/voice-live)
 - [VoiceLive SDK Documentation](https://learn.microsoft.com/java/api/overview/azure/ai-voicelive-readme)
 - [Model Context Protocol](https://modelcontextprotocol.io/)
 - [Support Guide](../../../SUPPORT.md)

@@ -180,6 +180,7 @@ Press **Ctrl+C** to exit gracefully.
 |---|---|
 | `Set VOICELIVE_ENDPOINT, AGENT_NAME, and PROJECT_NAME` | Check your `.env` file contains all required variables. |
 | SoX not found / microphone errors | Ensure SoX is installed and available on your `PATH`. |
+| `sox has exited with error code 1` | SoX cannot find the default recording device. Run `--list-audio-devices` to see available devices, then pass the device name with `--audio-input-device`. |
 | Authentication errors | Run `az login` and ensure your account has access to the Foundry project. |
 | Agent not found | Run `create-agent-with-voicelive.js` first to create the agent, or verify `AGENT_NAME` matches an existing agent. |
 | `ERR_USE_AFTER_CLOSE` on exit | This is expected when pressing Ctrl+C; the process exits cleanly. |

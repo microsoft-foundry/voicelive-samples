@@ -132,13 +132,15 @@ Not all MCP servers are well-suited for voice UX. Servers that respond quickly (
 
 ## Command Line Options
 
-- `--api-key`: Azure VoiceLive API key (or set `AZURE_VOICELIVE_API_KEY` env var)
-- `--endpoint`: Azure VoiceLive endpoint (default: from `AZURE_VOICELIVE_ENDPOINT` env var)
-- `--model`: VoiceLive model to use (default: `gpt-realtime`)
-- `--voice`: Voice for the assistant (default: `en-US-Ava:DragonHDLatestNeural`)
-- `--instructions`: Custom system instructions for the AI
-- `--use-token-credential`: Use Azure authentication instead of API key
-- `--verbose`: Enable detailed logging
+| Flag | Description |
+|---|---|
+| `--api-key` | Azure VoiceLive API key (or set `AZURE_VOICELIVE_API_KEY` env var) |
+| `--endpoint` | Azure VoiceLive endpoint (default: from `AZURE_VOICELIVE_ENDPOINT` env var) |
+| `--model` | VoiceLive model to use (default: `gpt-realtime`) |
+| `--voice` | Voice for the assistant (default: `en-US-Ava:DragonHDLatestNeural`) |
+| `--instructions` | Custom system instructions for the AI |
+| `--use-token-credential` | Use Azure authentication instead of API key |
+| `--verbose` | Enable detailed logging |
 
 ## Sample Trigger Phrases
 

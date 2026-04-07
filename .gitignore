@@ -301,6 +301,9 @@ FakesAssemblies/
 .ntvs_analysis.dat
 node_modules/
 
+# Conversation logs from voice-live quickstarts
+logs/
+
 # Visual Studio 6 build log
 *.plg
 

@@ -3,6 +3,7 @@
 
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Text.RegularExpressions;
 using System.Threading;
@@ -158,6 +159,7 @@ namespace Azure.AI.VoiceLive.Samples
         private readonly HashSet<string> _staleMcpItems = new();
         private bool _mcpResultsPending;
         private readonly HashSet<string> _approvedServersThisTurn = new();
+        private static readonly string LogFilename = $"conversation_{DateTime.Now:yyyyMMdd_HHmmss}.log";
 
         public MCPVoiceAssistant(
             VoiceLiveClient client,
@@ -306,6 +308,10 @@ namespace Azure.AI.VoiceLive.Samples
             {
                 case SessionUpdateSessionUpdated:
                     _logger.LogInformation("Session updated");
+                    WriteLog($"SessionID: {_session?.SessionId}");
+                    WriteLog($"Model: {_model}");
+                    WriteLog($"Voice: {_voice}");
+                    WriteLog("");
                     if (_audioProcessor != null)
                         await _audioProcessor.StartCaptureAsync().ConfigureAwait(false);
                     break;
@@ -325,6 +331,15 @@ namespace Azure.AI.VoiceLive.Samples
                     // reset on task completion (in MCP-call-completed when no pending/queued
                     // approvals remain) or on explicit denial (in ResolveVoiceApprovalAsync).
                     // Resetting on every speech-start would let the model retry denied calls.
+
+                    // Clear deferred response flags if no MCP calls are in progress.
+                    // Prevents stale needsResponseCreate from re-triggering result playback
+                    // after the user interrupts.
+                    if (_mcpCallInProgress <= 0)
+                    {
+                        _needsResponseCreate = false;
+                        _mcpResultsPending = false;
+                    }
 
                     // Reset approved-servers-this-turn when user starts a new topic
                     if (_pendingApproval == null && _mcpCallInProgress <= 0)
@@ -375,6 +390,7 @@ namespace Azure.AI.VoiceLive.Samples
                 case SessionUpdateResponseDone:
                     _responseActive = false;
                     _canCancelResponse = false;
+                    WriteLog("--- Response complete ---");
                     // If an approval prompt needs to be injected, do it now
                     if (_approvalPromptNeeded && _pendingApproval != null)
                     {
@@ -412,6 +428,7 @@ namespace Azure.AI.VoiceLive.Samples
                         else
                         {
                             Console.WriteLine($"❌ Error: {msg}");
+                        WriteLog($"ERROR: {msg}");
                         }
                     }
                     _responseActive = false;
@@ -423,6 +440,7 @@ namespace Azure.AI.VoiceLive.Samples
                     var transcript = transcription.Transcript ?? "";
                     _logger.LogInformation("User said: {Transcript}", transcript);
                     Console.WriteLine($"👤 You said:\t{transcript}");
+                    WriteLog($"User Input:\t{transcript}");
                     if (_pendingApproval != null)
                     {
                         await ResolveVoiceApprovalAsync(transcript, cancellationToken).ConfigureAwait(false);
@@ -432,15 +450,18 @@ namespace Azure.AI.VoiceLive.Samples
                 // MCP-specific events
                 case SessionUpdateMcpListToolsCompleted mcpListDone:
                     Console.WriteLine("🔧 MCP tools discovered successfully");
+                    WriteLog("MCP tools discovered successfully");
                     _logger.LogInformation("MCP tools discovered for server");
                     break;
 
                 case SessionUpdateMcpListToolsFailed:
                     Console.WriteLine("❌ MCP tool discovery failed");
+                    WriteLog("ERROR: MCP tool discovery failed");
                     break;
 
                 case SessionUpdateResponseMcpCallInProgress mcpInProgress:
                     Console.WriteLine("⏳ MCP tool call in progress...");
+                    WriteLog($"MCP call in progress: {mcpInProgress.ItemId}");
                     _mcpCallInProgress++;
                     _activeMcpItems.Add(mcpInProgress.ItemId ?? "");
                     StartMcpStallTimer(cancellationToken);
@@ -462,6 +483,7 @@ namespace Azure.AI.VoiceLive.Samples
                         bool isStale = _staleMcpItems.Remove(itemId);
                         _logger.LogInformation("MCP call completed for {ItemId} (stale={IsStale})", itemId, isStale);
                         Console.WriteLine("✅ MCP tool call completed successfully");
+                        WriteLog($"MCP call completed: {itemId} (stale={isStale});");
 
                         // Clean up item mapping
                         _mcpItemToServer.Remove(itemId);
@@ -518,6 +540,7 @@ namespace Azure.AI.VoiceLive.Samples
                 {
                     var failedItemId = mcpFailed.ItemId ?? "";
                     Console.WriteLine("❌ MCP tool call failed");
+                    WriteLog($"ERROR: MCP call failed: {failedItemId}");
                     _mcpCallInProgress = Math.Max(0, _mcpCallInProgress - 1);
                     _activeMcpItems.Remove(failedItemId);
                     _staleMcpItems.Remove(failedItemId);
@@ -657,6 +680,7 @@ namespace Azure.AI.VoiceLive.Samples
             Console.WriteLine();
             Console.WriteLine($"🔐 MCP Approval Request (voice-based):");
             Console.WriteLine($"   Server: {serverLabel}  Tool: {toolName}");
+            WriteLog($"Approval request: server={serverLabel} tool={toolName}");
 
             _pendingApproval = new ApprovalInfo(approvalId, serverLabel, toolName);
 
@@ -773,6 +797,7 @@ namespace Azure.AI.VoiceLive.Samples
             }
             _logger.LogInformation("Voice approval resolved: {Approved} for {Tool}", approved, pending.FunctionName);
             Console.WriteLine($"   Voice approval: {(approved ? "Approved ✅" : "Denied ❌")}");
+            WriteLog($"Approval resolved: {(approved ? "APPROVED" : "DENIED")} for {pending.ServerLabel}/{pending.FunctionName}");
 
             // Process next queued approval, if any
             await ProcessNextApprovalAsync(cancellationToken).ConfigureAwait(false);
@@ -849,6 +874,18 @@ namespace Azure.AI.VoiceLive.Samples
             }
         }
         // </mcp_stall_detection>
+
+        private static void WriteLog(string message)
+        {
+            try
+            {
+                var logDir = Path.Combine(Directory.GetCurrentDirectory(), "logs");
+                Directory.CreateDirectory(logDir);
+                var logPath = Path.Combine(logDir, LogFilename);
+                File.AppendAllText(logPath, $"[{DateTime.Now:HH:mm:ss}] {message}{Environment.NewLine}");
+            }
+            catch (IOException) { }
+        }
 
         public void Dispose()
         {

@@ -1,0 +1,18 @@
+# Azure VoiceLive Configuration
+# Copy this file to application.properties and fill in your values
+
+# Required: Your VoiceLive endpoint URL
+azure.voicelive.endpoint=https://your-endpoint.services.ai.azure.com/
+
+# Required: Your API key (if using API key authentication)
+# Comment this out if using Azure credential authentication
+azure.voicelive.api-key=your-api-key-here
+
+# Optional: Model name (default: gpt-realtime)
+# azure.voicelive.model=gpt-realtime
+
+# Optional: Voice name (default: en-US-Ava:DragonHDLatestNeural)
+# azure.voicelive.voice=en-US-Ava:DragonHDLatestNeural
+
+# Optional: API version (default: 2025-10-01)
+# azure.voicelive.api-version=2025-10-01

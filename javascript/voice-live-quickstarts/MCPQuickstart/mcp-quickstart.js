@@ -6,6 +6,25 @@ import { VoiceLiveClient } from "@azure/ai-voicelive";
 import { AzureKeyCredential } from "@azure/core-auth";
 import { DefaultAzureCredential } from "@azure/identity";
 import { spawn } from "node:child_process";
+import { existsSync, mkdirSync, appendFileSync } from "node:fs";
+import { join, dirname } from "node:path";
+import { fileURLToPath } from "node:url";
+
+const __dirname = dirname(fileURLToPath(import.meta.url));
+
+const logsDir = join(__dirname, "logs");
+if (!existsSync(logsDir)) mkdirSync(logsDir, { recursive: true });
+
+const timestamp = new Date()
+  .toISOString()
+  .replace(/[:.]/g, "-")
+  .replace("T", "_")
+  .slice(0, 19);
+const conversationLogFile = join(logsDir, `conversation_${timestamp}.log`);
+
+function writeConversationLog(message) {
+  appendFileSync(conversationLogFile, message + "\n", "utf-8");
+}
 
 function printUsage() {
   console.log("Usage: node mcp-quickstart.js [options]");
@@ -19,6 +38,7 @@ function printUsage() {
   );
   console.log("  --instructions <text>       System instructions for the assistant");
   console.log("  --audio-input-device <name> Explicit SoX input device name (Windows)");
+  console.log("  --list-audio-devices        List available audio input devices and exit");
   console.log("  --use-token-credential      Use Azure credential instead of API key");
   console.log("  --no-audio                  Connect and configure session without mic/speaker");
   console.log("  -h, --help                  Show this help text");
@@ -35,6 +55,7 @@ function parseArguments(argv) {
       process.env.AZURE_VOICELIVE_INSTRUCTIONS ??
       "You are a helpful AI assistant with access to MCP tools. Always respond in English. When a user asks a question, use the appropriate tool once to find information, then summarize the results conversationally. IMPORTANT: Never call the same tool more than once per user question. After receiving a tool result, always respond to the user with what you found — do not search again. Some tools require user approval before they can be used. When you receive a system message asking you to request permission, you MUST clearly ask the user for their explicit approval before proceeding. Always wait for the user to say yes or no. Never skip the approval question or assume permission is granted. If a tool result arrives after the conversation has moved to a different topic, briefly introduce it as a late result before sharing the findings.",
     audioInputDevice: process.env.AUDIO_INPUT_DEVICE,
+    listAudioDevices: false,
     useTokenCredential: false,
     noAudio: false,
     help: false,
@@ -61,6 +82,9 @@ function parseArguments(argv) {
       case "--audio-input-device":
         parsed.audioInputDevice = argv[++i];
         break;
+      case "--list-audio-devices":
+        parsed.listAudioDevices = true;
+        break;
       case "--use-token-credential":
         parsed.useTokenCredential = true;
         break;
@@ -80,6 +104,42 @@ function parseArguments(argv) {
   }
 
   return parsed;
+}
+
+/**
+ * List available audio input devices on Windows (AudioEndpoint via WMI).
+ */
+async function listAudioDevices() {
+  if (process.platform !== "win32") {
+    console.log("Device listing is currently supported on Windows only.");
+    console.log("On macOS/Linux, run: sox -V6 -n -t coreaudio -n trim 0 0  (or similar)");
+    return;
+  }
+
+  const { execSync } = await import("node:child_process");
+  try {
+    const output = execSync(
+      'powershell -NoProfile -Command "Get-CimInstance Win32_PnPEntity | Where-Object { $_.PNPClass -eq \'AudioEndpoint\' } | Select-Object -ExpandProperty Name"',
+      { encoding: "utf-8", timeout: 10000 },
+    ).trim();
+
+    if (!output) {
+      console.log("No audio endpoint devices found.");
+      return;
+    }
+
+    console.log("Available audio endpoint devices:");
+    console.log("");
+    for (const line of output.split(/\r?\n/)) {
+      const name = line.trim();
+      if (name) console.log(`  ${name}`);
+    }
+    console.log("");
+    console.log("Use the device name (or a unique substring) with --audio-input-device.");
+    console.log('Example: node mcp-quickstart.js --audio-input-device "Microphone"');
+  } catch (err) {
+    console.error("Failed to query audio devices:", err.message);
+  }
 }
 
 function resolveVoiceConfig(voiceName) {
@@ -235,7 +295,10 @@ class AudioProcessor {
   async _resetSpeaker() {
     await this._ensureAudioModulesLoaded();
     if (this._speaker && !this._speaker.destroyed) {
-      try { this._speaker.end(); } catch { /* no-op */ }
+      // Use destroy() instead of end() to immediately discard buffered audio.
+      // end() drains the buffer (plays it out), which causes old MCP response
+      // audio to keep playing after barge-in.
+      try { this._speaker.destroy(); } catch { /* no-op */ }
     }
     this._speaker = new this._speakerCtor({
       channels: 1,
@@ -300,6 +363,7 @@ class MCPVoiceAssistant {
     this._staleMcpItems = new Set();
     this._mcpResultsPending = false;
     this._approvedServersThisTurn = new Set();
+    this._bargeInActive = false;
   }
 
   // <configure_session>
@@ -353,11 +417,22 @@ class MCPVoiceAssistant {
           `  Model: ${typeof model === "string" ? model : model?.toString?.() ?? ""}`,
         );
         console.log(`  Voice: ${voice?.name ?? ""}`);
+        writeConversationLog(
+          [
+            `SessionID: ${context.sessionId}`,
+            `Model: ${typeof model === "string" ? model : model?.toString?.() ?? ""}`,
+            `Voice Name: ${voice?.name ?? ""}`,
+            `Voice Type: ${voice?.type ?? ""}`,
+            `Log File: ${conversationLogFile}`,
+            "",
+          ].join("\n"),
+        );
       },
 
       onConversationItemInputAudioTranscriptionCompleted: async (event) => {
         const transcript = event.transcript ?? "";
         console.log(`👤 You said:\t${transcript}`);
+        writeConversationLog(`User Input:\t${transcript}`);
         if (this._pendingApproval !== null) {
           await this._resolveVoiceApproval(transcript, session);
         }
@@ -366,11 +441,13 @@ class MCPVoiceAssistant {
       onResponseTextDone: async (event) => {
         const text = event.text ?? "";
         console.log(`🤖 Assistant text:\t${text}`);
+        writeConversationLog(`Assistant Text Response:\t${text}`);
       },
 
       onResponseAudioTranscriptDone: async (event) => {
         const transcript = event.transcript ?? "";
         console.log(`🤖 Assistant audio transcript:\t${transcript}`);
+        writeConversationLog(`Assistant Audio Response:\t${transcript}`);
       },
 
       onInputAudioBufferSpeechStarted: async () => {
@@ -382,12 +459,20 @@ class MCPVoiceAssistant {
         // pending/queued approvals remain) or on denial (in _resolveVoiceApproval).
         // Resetting on every speech-start would let the model retry denied calls.
 
+        // Clear ALL deferred response flags on barge-in.
+        // This prevents onResponseDone (fired by the cancelled response)
+        // from immediately creating a new response that overlaps the user.
+        this._needsResponseCreate = false;
+        this._mcpResultsPending = false;
+
         // Reset approved-servers-this-turn when user starts a new topic
         if (this._pendingApproval === null && this._mcpCallInProgress <= 0) {
           this._approvedServersThisTurn.clear();
         }
 
         if (this._activeResponse && !this._responseApiDone) {
+          // Mark barge-in so onResponseDone skips deferred actions
+          this._bargeInActive = true;
           try {
             await session.sendEvent({ type: "response.cancel" });
           } catch (err) {
@@ -396,6 +481,9 @@ class MCPVoiceAssistant {
               console.warn("[barge-in] Cancel failed:", msg);
             }
           }
+          try {
+            await session.sendEvent({ type: "input_audio_buffer.clear" });
+          } catch { /* best-effort */ }
         }
 
         if (this._mcpCallInProgress > 0 && this._pendingApproval === null) {
@@ -428,8 +516,16 @@ class MCPVoiceAssistant {
 
       onResponseDone: async () => {
         console.log("✅ Response complete");
+        writeConversationLog("--- Response complete ---");
         this._activeResponse = false;
         this._responseApiDone = true;
+
+        // If this response.done is the result of a barge-in cancel,
+        // skip all deferred actions — the user's new turn will handle things.
+        if (this._bargeInActive) {
+          this._bargeInActive = false;
+          return;
+        }
 
         if (this._approvalPromptNeeded && this._pendingApproval !== null) {
           this._approvalPromptNeeded = false;
@@ -455,19 +551,23 @@ class MCPVoiceAssistant {
         }
         if (msg.toLowerCase().includes("active response")) return;
         console.error(`❌ VoiceLive error: ${msg}`);
+        writeConversationLog(`ERROR: ${msg}`);
       },
 
       // MCP-specific event handlers
       onMcpListToolsCompleted: async (event) => {
         console.log(`🔧 MCP tools discovered successfully`);
+        writeConversationLog("MCP tools discovered successfully");
       },
 
       onMcpListToolsFailed: async (event) => {
         console.error(`❌ MCP tool discovery failed`);
+        writeConversationLog("ERROR: MCP tool discovery failed");
       },
 
       onResponseMcpCallInProgress: async (event) => {
         console.log("⏳ MCP tool call in progress...");
+        writeConversationLog(`MCP call in progress: ${event.item_id ?? ""}`);
         this._mcpCallInProgress++;
         this._activeMcpItems.add(event.item_id);
         this._startMcpStallTimer(session);
@@ -489,6 +589,7 @@ class MCPVoiceAssistant {
         const isStale = this._staleMcpItems.has(itemId);
         this._staleMcpItems.delete(itemId);
         console.log(`✅ MCP tool call completed (stale=${isStale})`);
+        writeConversationLog(`MCP call completed: ${itemId} (stale=${isStale})`);
 
         delete this._mcpItemToServer[itemId];
         if (this._pendingApproval === null && this._approvalQueue.length === 0) {
@@ -520,6 +621,7 @@ class MCPVoiceAssistant {
       onResponseMcpCallFailed: async (event) => {
         const itemId = event.item_id ?? "";
         console.error("❌ MCP tool call failed");
+        writeConversationLog(`ERROR: MCP call failed: ${itemId}`);
         this._mcpCallInProgress = Math.max(0, this._mcpCallInProgress - 1);
         this._activeMcpItems.delete(itemId);
         this._staleMcpItems.delete(itemId);
@@ -534,6 +636,7 @@ class MCPVoiceAssistant {
           const fn = item.name ?? "";
           this._mcpItemToServer[item.id] = `${sl}/${fn}`;
           console.log(`🔧 MCP tool call: ${sl}/${fn}`);
+          writeConversationLog(`MCP tool call: ${sl}/${fn} (id=${item.id})`);
           if (!this._pendingApproval && !this._approvalServers.has(sl)) {
             try {
               await session.addConversationItem({ type: "message", role: "system", content: [{ type: "input_text", text: "Briefly tell the user you're looking something up. One short sentence only." }] });
@@ -542,6 +645,7 @@ class MCPVoiceAssistant {
           }
         }
         if (item?.type === "mcp_approval_request") {
+          writeConversationLog(`MCP approval request: ${item.serverLabel ?? item.server_label ?? ""} / ${item.name ?? ""} (id=${item.id ?? ""})`);
           await this._handleApprovalRequest(item, session);
         }
       },
@@ -569,13 +673,10 @@ class MCPVoiceAssistant {
     if (currentCount >= MAX_APPROVAL_CALLS_PER_TASK) {
       console.log(`   Auto-denied: ${serverLabel}/${functionName} (max ${MAX_APPROVAL_CALLS_PER_TASK} calls reached)`);
       try {
-        await session.sendEvent({
-          type: "conversation.item.create",
-          item: {
-            type: "mcp_approval_response",
-            approval_request_id: approvalId,
-            approve: false,
-          },
+        await session.addConversationItem({
+          type: "mcp_approval_response",
+          approvalRequestId: approvalId,
+          approve: false,
         });
       } catch (err) {
         console.warn("Failed to send auto-deny:", err?.message ?? err);
@@ -587,13 +688,10 @@ class MCPVoiceAssistant {
     if (this._approvedServersThisTurn.has(serverLabel)) {
       console.log(`   Auto-approved: ${serverLabel}/${functionName} (already approved this turn)`);
       try {
-        await session.sendEvent({
-          type: "conversation.item.create",
-          item: {
-            type: "mcp_approval_response",
-            approval_request_id: approvalId,
-            approve: true,
-          },
+        await session.addConversationItem({
+          type: "mcp_approval_response",
+          approvalRequestId: approvalId,
+          approve: true,
         });
       } catch (err) {
         console.warn("Failed to send auto-approve:", err?.message ?? err);
@@ -647,19 +745,23 @@ class MCPVoiceAssistant {
     if (this._pendingApproval === null) return;
 
     const lower = transcript.toLowerCase();
-    const yesMatch = /\byes\b/.test(lower);
-    const noMatch = /\b(no|stop|cancel)\b/.test(lower);
+    let approved = /\byes\b/.test(lower);
+    const denied = /\b(no|stop|cancel)\b/.test(lower);
 
-    if (!yesMatch && !noMatch) {
+    if (!approved && !denied) {
       // Ambiguous — will re-prompt at next response.done
       this._approvalPromptNeeded = true;
       return;
     }
 
-    const approved = yesMatch && !noMatch;
+    if (approved && denied) {
+      approved = false; // Conflicting signals — deny for safety
+    }
+
     const { approvalId, serverLabel } = this._pendingApproval;
 
     console.log(`   Voice response: ${approved ? "Approved ✅" : "Denied ❌"}`);
+    writeConversationLog(`Voice approval: ${approved ? "Approved" : "Denied"} for ${serverLabel}`);
 
     this._pendingApproval = null;
 
@@ -671,13 +773,10 @@ class MCPVoiceAssistant {
     }
 
     try {
-      await session.sendEvent({
-        type: "conversation.item.create",
-        item: {
-          type: "mcp_approval_response",
-          approval_request_id: approvalId,
-          approve: approved,
-        },
+      await session.addConversationItem({
+        type: "mcp_approval_response",
+        approvalRequestId: approvalId,
+        approve: approved,
       });
     } catch (err) {
       console.error("❌ Failed to send approval response:", err?.message ?? err);
@@ -689,7 +788,25 @@ class MCPVoiceAssistant {
   async _processNextApproval(session) {
     if (this._approvalQueue.length === 0) return;
 
-    this._pendingApproval = this._approvalQueue.shift();
+    const next = this._approvalQueue.shift();
+
+    // Auto-approve if user already approved this server earlier in the same turn
+    if (this._approvedServersThisTurn.has(next.serverLabel)) {
+      console.log(`   Auto-approved (queued): ${next.serverLabel}/${next.functionName}`);
+      try {
+        await session.addConversationItem({
+          type: "mcp_approval_response",
+          approvalRequestId: next.approvalId,
+          approve: true,
+        });
+      } catch (err) {
+        console.warn("Failed to send queued auto-approve:", err?.message ?? err);
+      }
+      await this._processNextApproval(session);
+      return;
+    }
+
+    this._pendingApproval = next;
 
     if (!this._activeResponse) {
       await this._sendApprovalVoicePrompt(session);
@@ -828,6 +945,11 @@ async function main() {
     return;
   }
 
+  if (args.listAudioDevices) {
+    await listAudioDevices();
+    return;
+  }
+
   if (!args.endpoint) {
     console.error(
       "❌ Missing endpoint. Set AZURE_VOICELIVE_ENDPOINT or pass --endpoint.",
@@ -856,6 +978,7 @@ async function main() {
   console.log(
     `  Authentication: ${args.useTokenCredential ? "DefaultAzureCredential" : "API Key"}`,
   );
+  console.log(`  Log file: ${conversationLogFile}`);
 
   const assistant = new MCPVoiceAssistant({
     endpoint: args.endpoint,

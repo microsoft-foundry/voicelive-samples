@@ -87,6 +87,10 @@ if not os.path.exists('logs'):
 
 timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
 
+# Conversation log filename (separate from debug log)
+_script_dir = os.path.dirname(os.path.abspath(__file__))
+conversation_logfilename = f"{timestamp}_conversation.log"
+
 logging.basicConfig(
     filename=f'logs/{timestamp}_voicelive.log',
     filemode="w",
@@ -433,6 +437,10 @@ class MCPVoiceAssistant:
 
         if event.type == ServerEventType.SESSION_UPDATED:
             logger.info("Session ready: %s", event.session.id)
+            await write_conversation_log(f"SessionID: {event.session.id}")
+            await write_conversation_log(f"Model: {event.session.model}")
+            await write_conversation_log(f"Voice: {event.session.voice}")
+            await write_conversation_log("")
             self.session_ready = True
             ap.start_capture()
 
@@ -445,6 +453,13 @@ class MCPVoiceAssistant:
             # But approved-servers-this-turn resets when user starts a new topic
             if self._pending_approval is None and self._mcp_call_in_progress <= 0:
                 self._approved_servers_this_turn.clear()
+
+            # Clear deferred response flags if no MCP calls are in progress.
+            # Prevents stale _needs_response_create from re-triggering result
+            # playback after the user interrupts.
+            if self._mcp_call_in_progress <= 0:
+                self._needs_response_create = False
+                self._mcp_results_pending = False
 
             if self._active_response and not self._response_api_done:
                 try:
@@ -488,8 +503,19 @@ class MCPVoiceAssistant:
             logger.info("Assistant finished speaking")
             print("🎤 Ready for next input...")
 
+        elif event.type == ServerEventType.RESPONSE_TEXT_DONE:
+            text = event.text if hasattr(event, 'text') else event.get("text", "")
+            print(f"🤖 Assistant text:\t{text}")
+            await write_conversation_log(f"Assistant Text Response:\t{text}")
+
+        elif event.type == ServerEventType.RESPONSE_AUDIO_TRANSCRIPT_DONE:
+            transcript = event.transcript if hasattr(event, 'transcript') else event.get("transcript", "")
+            print(f"🤖 Assistant audio transcript:\t{transcript}")
+            await write_conversation_log(f"Assistant Audio Response:\t{transcript}")
+
         elif event.type == ServerEventType.RESPONSE_DONE:
             logger.info("Response complete")
+            await write_conversation_log("--- Response complete ---")
             self._active_response = False
             self._response_api_done = True
 
@@ -517,6 +543,7 @@ class MCPVoiceAssistant:
             transcript = event.transcript if hasattr(event, 'transcript') else event.get("transcript", "")
             logger.info("User said: %s", transcript)
             print(f"👤 You said:\t{transcript}")
+            await write_conversation_log(f"User Input:\t{transcript}")
 
             # Interpret as an approval answer if we have a pending approval —
             # whether or not the prompt has finished speaking. This allows the
@@ -538,6 +565,7 @@ class MCPVoiceAssistant:
                 else:
                     logger.error("VoiceLive error: %s", msg)
                     print(f"Error: {msg}")
+                    await write_conversation_log(f"ERROR: {msg}")
 
         # MCP-specific events
         elif event.type == ServerEventType.MCP_LIST_TOOLS_IN_PROGRESS:
@@ -546,14 +574,17 @@ class MCPVoiceAssistant:
         elif event.type == ServerEventType.MCP_LIST_TOOLS_COMPLETED:
             logger.info("MCP list tools completed for %s", event.item_id)
             print("🔧 MCP tools discovered successfully")
+            await write_conversation_log("MCP tools discovered successfully")
 
         elif event.type == ServerEventType.MCP_LIST_TOOLS_FAILED:
             logger.error("MCP list tools failed for %s", event.item_id)
             print("❌ MCP tool discovery failed")
+            await write_conversation_log("ERROR: MCP tool discovery failed")
 
         elif event.type == ServerEventType.RESPONSE_MCP_CALL_IN_PROGRESS:
             logger.info("MCP call in progress for %s", event.item_id)
             print("⏳ MCP tool call in progress...")
+            await write_conversation_log(f"MCP call in progress: {event.item_id}")
             self._mcp_call_in_progress += 1
             self._active_mcp_items.add(event.item_id)
             self._start_mcp_stall_timer(conn)
@@ -570,12 +601,14 @@ class MCPVoiceAssistant:
                 is_stale = item_id in self._stale_mcp_items
                 self._stale_mcp_items.discard(item_id)
                 logger.info("MCP call completed for %s (stale=%s)", item_id, is_stale)
+                await write_conversation_log(f"MCP call completed: {item_id} (stale={is_stale})")
                 await self._handle_mcp_call_completed(event, conn, is_stale=is_stale)
 
         elif event.type == ServerEventType.RESPONSE_MCP_CALL_FAILED:
             item_id = event.item_id
             logger.error("MCP call failed for %s", item_id)
             print("❌ MCP tool call failed")
+            await write_conversation_log(f"ERROR: MCP call failed: {item_id}")
             self._mcp_call_in_progress = max(0, self._mcp_call_in_progress - 1)
             self._active_mcp_items.discard(item_id)
             self._stale_mcp_items.discard(item_id)
@@ -746,6 +779,7 @@ class MCPVoiceAssistant:
             return
         logger.info("Voice approval resolved: %s for %s", approved, pending["function_name"])
         print(f"   Voice approval: {'Approved ✅' if approved else 'Denied ❌'}")
+        await write_conversation_log(f"Voice approval: {'Approved' if approved else 'Denied'} for {pending['server_label']}")
 
         # Process next queued approval, if any
         await self._process_next_approval(connection)
@@ -948,6 +982,14 @@ def parse_arguments():
     parser.add_argument("--verbose", help="Enable verbose logging", action="store_true")
 
     return parser.parse_args()
+
+
+async def write_conversation_log(message: str) -> None:
+    """Write a message to the conversation log."""
+    log_path = os.path.join(_script_dir, 'logs', conversation_logfilename)
+    await asyncio.to_thread(
+        lambda: open(log_path, 'a', encoding='utf-8').write(message + "\n")
+    )
 
 
 def main():
