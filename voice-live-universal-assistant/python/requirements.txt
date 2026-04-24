@@ -1,6 +1,6 @@
 azure-ai-voicelive==1.2.0b4
 azure-identity
 aiohttp
-fastapi>=0.104.0
+fastapi>=0.136.1
 uvicorn[standard]>=0.24.0
 python-dotenv
