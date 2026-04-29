@@ -1,0 +1,4 @@
+azure-ai-voicelive
+opentelemetry-sdk
+azure-core-tracing-opentelemetry
+azure-monitor-opentelemetry

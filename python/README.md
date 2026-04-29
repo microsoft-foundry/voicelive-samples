@@ -68,6 +68,18 @@ Demonstrates how to implement function calling with VoiceLive models, enabling t
 - Advanced tool integration
 - Proactive greeting support
 
+### [Telemetry Quickstart](./voice-live-quickstarts/TelemetryQuickstart/)
+
+Demonstrates how to enable and customize OpenTelemetry tracing for Voice Live SDK sessions. These are text-mode samples — copy the region-tagged snippets into any existing Voice Live application.
+
+**Key Features:**
+- Console span export for local debugging
+- Azure Monitor / Application Insights export
+- Custom span attributes for session and user correlation
+- Content recording with PII warnings
+
+> **Docs**: [Enable telemetry and tracing for Voice Live](https://learn.microsoft.com/azure/ai-services/speech-service/how-to-voice-live-telemetry)
+
 ### [RAG-enabled Voice Assistant](./voice-live-voicerag-assistant/README.md)
 
 Demonstrates how to build a real-time voice assistant with Retrieval-Augmented Generation (RAG) capabilities using Azure AI Voice Live API and Azure AI Search.

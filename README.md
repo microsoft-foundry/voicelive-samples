@@ -62,6 +62,7 @@ Python samples showcasing:
 - **Model Quickstart**: Direct model access with flexible authentication
 - **Bring-Your-Own-Model (BYOM) Quickstart**: Use your own models hosted in Foundry with proactive greetings
 - **Function Calling**: Advanced tool integration with custom functions and proactive greetings
+- **Telemetry Quickstart**: OpenTelemetry tracing — console export, Azure Monitor, custom attributes, and content recording
 - **RAG-enabled Voice Assistant**: Full-stack voice assistant with Azure AI Search integration and `azd` deployment
 - **Voice Live Avatar**: Avatar-enabled voice conversations with server-side SDK and Docker deployment
 - Built with Python 3.8+ and async/await patterns
