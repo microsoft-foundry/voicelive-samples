@@ -26,6 +26,7 @@ USAGE:
 REQUIREMENTS:
     - azure-ai-voicelive
     - azure-monitor-opentelemetry
+    - azure-core-tracing-opentelemetry
 """
 
 import asyncio
@@ -133,4 +134,11 @@ async def main() -> None:
 
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    try:
+        asyncio.run(main())
+    finally:
+        tracer_provider = trace.get_tracer_provider()
+        if hasattr(tracer_provider, "force_flush"):
+            tracer_provider.force_flush()
+        if hasattr(tracer_provider, "shutdown"):
+            tracer_provider.shutdown()
