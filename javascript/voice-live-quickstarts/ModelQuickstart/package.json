@@ -4,7 +4,7 @@
   "private": true,
   "type": "module",
   "dependencies": {
-    "@azure/ai-voicelive": "1.0.0-beta.3",
+    "@azure/ai-voicelive": "1.0.0-beta.4",
     "@azure/core-auth": "^1.9.0",
     "@azure/identity": "^4.6.0",
     "dotenv": "^17.4.0"
