@@ -8,7 +8,7 @@
     <parent>
         <groupId>org.springframework.boot</groupId>
         <artifactId>spring-boot-starter-parent</artifactId>
-        <version>3.3.6</version>
+        <version>3.5.14</version>
         <relativePath/>
     </parent>
 
@@ -22,7 +22,7 @@
     <properties>
         <java.version>17</java.version>
         <azure-ai-voicelive.version>1.0.0-beta.5</azure-ai-voicelive.version>
-        <azure-identity.version>1.18.2</azure-identity.version>
+        <azure-identity.version>1.18.3</azure-identity.version>
     </properties>
 
     <dependencies>
@@ -54,7 +54,7 @@
         <dependency>
             <groupId>com.azure</groupId>
             <artifactId>azure-core</artifactId>
-            <version>1.55.3</version>
+            <version>1.58.0</version>
         </dependency>
 
         <!-- Jackson for JSON -->
