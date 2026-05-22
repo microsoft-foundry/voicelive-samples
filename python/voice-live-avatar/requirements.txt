@@ -1,4 +1,4 @@
-azure-ai-voicelive[aiohttp]>=1.0.0
+azure-ai-voicelive[aiohttp]>=1.2.0
 azure-identity
 azure-core
 aiohttp
