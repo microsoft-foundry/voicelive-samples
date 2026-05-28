@@ -11,28 +11,13 @@ import {
   type SessionContext,
 } from "@azure/ai-voicelive";
 import { AzureKeyCredential } from "@azure/core-auth";
-import type { TokenCredential, KeyCredential } from "@azure/core-auth";
+import type { KeyCredential } from "@azure/core-auth";
 import * as speechSDK from "microsoft-cognitiveservices-speech-sdk";
 import { SimpleAudioCapture } from "./audioCapture.js";
 
-// Note: DefaultAzureCredential would come from @azure/identity package
-// For this demo, we'll create a mock implementation
-class MockDefaultAzureCredential implements TokenCredential {
-  async getToken(): Promise<{ token: string; expiresOnTimestamp: number } | null> {
-    console.warn(
-      "Mock DefaultAzureCredential used - implement proper Azure authentication for production",
-    );
-    return {
-      token: "mock-token-for-demo",
-      expiresOnTimestamp: Date.now() + 3600000, // 1 hour from now
-    };
-  }
-}
-
 export interface VoiceAssistantConfig {
   endpoint: string;
-  apiKey?: string;
-  useTokenCredential?: boolean;
+  apiKey: string;
   voice: string;
   instructions: string;
   debugMode?: boolean;
@@ -102,7 +87,7 @@ interface TurnContext {
 }
 
 export class VoiceAssistant {
-  private credential?: TokenCredential | KeyCredential;
+  private credential?: KeyCredential;
   private client?: VoiceLiveClient;
   private session?: VoiceLiveSession;
   private subscription?: VoiceLiveSubscription;
@@ -479,9 +464,7 @@ export class VoiceAssistant {
         connectionTimeoutInMs: 30000,
       };
 
-      console.log(
-        `🔑 Using credential type: ${config.useTokenCredential ? "TokenCredential" : "API Key"}`,
-      );
+      console.log("🗝️ Using API Key authentication");
       console.log(
         "⚡ Using fail-fast connection policy - any disconnection will terminate session",
       );
@@ -533,17 +516,10 @@ export class VoiceAssistant {
     }
   }
 
-  private createCredential(config: VoiceAssistantConfig): TokenCredential | KeyCredential {
-    if (config.useTokenCredential) {
-      // Use Azure Default Credential (for production scenarios)
-      console.log("🔑 Using Azure Default Credential (token-based authentication)");
-      return new MockDefaultAzureCredential();
-    }
-    // Use API Key (for development/simple scenarios)
+  private createCredential(config: VoiceAssistantConfig): KeyCredential {
     if (!config.apiKey) {
-      throw new Error("API key is required when not using token credential");
+      throw new Error("API key is required");
     }
-    console.log("🗝️ Using API Key authentication");
     return new AzureKeyCredential(config.apiKey);
   }
 

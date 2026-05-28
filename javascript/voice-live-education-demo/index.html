@@ -25,20 +25,7 @@
                     </div>
                     <div class="config-item">
                         <label for="apiKey">API Key:</label>
-                        <input type="password" id="apiKey" placeholder="Your Voice Live API key">
-                    </div>
-                    <div class="config-item">
-                        <label>Authentication Method:</label>
-                        <div class="auth-method-selector">
-                            <label class="radio-label">
-                                <input type="radio" name="authMethod" value="apikey" checked>
-                                API Key (Simple)
-                            </label>
-                            <label class="radio-label">
-                                <input type="radio" name="authMethod" value="token">
-                                Azure Token Credential (Production)
-                            </label>
-                        </div>
+                        <input type="password" id="apiKey" placeholder="Your Voice Live API key" required>
                     </div>
                     <div class="config-item">
                         <label for="voice">Voice:</label>
@@ -64,7 +51,6 @@
                             <input type="checkbox" id="debugMode" checked>
                             Show debug logging hints in console
                         </label>
-                        <small>SDK log verbosity is controlled by <code>@azure/logger</code> (e.g. <code>setLogLevel("verbose")</code> or <code>AZURE_LOG_LEVEL=verbose</code>).</small>
                         <label>
                             <input type="checkbox" id="enableLatencyTracking">
                             Show Latency Metrics

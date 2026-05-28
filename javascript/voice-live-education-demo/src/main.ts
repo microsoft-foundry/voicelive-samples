@@ -94,24 +94,6 @@ class WebVoiceAssistantApp {
       this.hideError();
     });
 
-    // Handle auth method changes
-    const authMethodRadios = document.querySelectorAll('input[name="authMethod"]');
-    const apiKeyInput = document.getElementById('apiKey') as HTMLInputElement;
-    const apiKeyContainer = apiKeyInput.parentElement!;
-    
-    authMethodRadios.forEach(radio => {
-      radio.addEventListener('change', (e) => {
-        const target = e.target as HTMLInputElement;
-        if (target.value === 'token') {
-          apiKeyContainer.style.display = 'none';
-          apiKeyInput.required = false;
-        } else {
-          apiKeyContainer.style.display = 'flex';
-          apiKeyInput.required = true;
-        }
-      });
-    });
-
     // PA scenarios are always available — fill instructions from the selected scenario
     const instructionsTextarea = document.getElementById('instructions') as HTMLTextAreaElement;
     const paRefTextCheckbox = document.getElementById('paWithReferenceText') as HTMLInputElement;
@@ -288,16 +270,14 @@ class WebVoiceAssistantApp {
     const paWithReferenceText = (document.getElementById('paWithReferenceText') as HTMLInputElement).checked;
     const paScenarioElement = document.querySelector('input[name="paScenario"]:checked') as HTMLInputElement;
     const paScenario = paScenarioElement?.value || 'conversation';
-    const authMethodElement = document.querySelector('input[name="authMethod"]:checked') as HTMLInputElement;
-    const useTokenCredential = authMethodElement ? authMethodElement.value === 'token' : false;
     const enableLatencyTracking = (document.getElementById('enableLatencyTracking') as HTMLInputElement).checked;
 
     if (!endpoint) {
       throw new Error('Endpoint is required');
     }
 
-    if (!useTokenCredential && !apiKey) {
-      throw new Error('API key is required when using API key authentication');
+    if (!apiKey) {
+      throw new Error('API key is required');
     }
 
     return {
@@ -306,7 +286,6 @@ class WebVoiceAssistantApp {
       voice,
       instructions,
       debugMode,
-      useTokenCredential,
       paWithReferenceText,
       paScenario,
       enableLatencyTracking

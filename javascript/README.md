@@ -85,6 +85,17 @@ A React + Vite demo showcasing a Voice-Enabled Car Assistant powered by Azure Op
 - Real-time EV driving cycle simulation
 - Latency and token usage benchmarking
 
+### [Voice Live Education Demo](./voice-live-education-demo/)
+
+A browser-based English pronunciation coaching demo that pairs the **Azure Voice Live SDK** with the **Azure Speech SDK** pronunciation assessment (PA) for real-time, targeted coaching feedback.
+
+**Key Features:**
+- Per-word pronunciation assessment with color-coded visualization
+- Multiple PA scenarios (Conversation, Concise, Read Along)
+- With-reference-text and streaming PA modes
+- Real-time streaming text/audio with barge-in support
+- Optional latency metrics and live event panel
+
 ### [Voice Live Interpreter Demo](./voice-live-interpreter-demo/)
 
 A minimal Vite + React + TypeScript demo that uses **Azure Voice Live** for real-time speech translation.
@@ -128,6 +139,7 @@ All samples require:
 | Basic Web Voice Assistant | [Node.js 18+](https://nodejs.org/) with npm |
 | Voice Live Avatar | [Docker](https://www.docker.com/get-started) |
 | Voice Live Car Demo | [Node.js 18+](https://nodejs.org/) with npm |
+| Voice Live Education Demo | [Node.js 18+](https://nodejs.org/) with npm |
 | Voice Live Interpreter Demo | [Node.js 18+](https://nodejs.org/) with npm |
 | Voice Live Trader Demo | [Node.js 18+](https://nodejs.org/) with npm |
 
