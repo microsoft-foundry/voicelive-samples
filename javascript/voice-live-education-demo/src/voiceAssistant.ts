@@ -1191,17 +1191,7 @@ export class VoiceAssistant {
   }
 
   private createVoiceObject(voiceName: string): any {
-    // Check if it's an OpenAI voice (simple names like 'alloy', 'echo', etc.)
-    const openAIVoices = ["alloy", "echo", "shimmer", "ash", "ballad", "coral", "sage", "verse"];
-
-    if (openAIVoices.includes(voiceName.toLowerCase())) {
-      return {
-        type: "openai",
-        name: voiceName.toLowerCase(),
-      };
-    }
-
-    // Assume it's an Azure voice (contains locale patterns like en-US)
+    // All supported voices are Azure voices in this demo
     return {
       type: "azure-standard",
       name: voiceName,

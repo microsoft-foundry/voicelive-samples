@@ -253,19 +253,13 @@ In the **Read Along** scenario, the assistant calls the `set_reference_text` too
 
 ## 🎤 **Voice Configuration**
 
-The SDK supports multiple voice providers with proper object structures (not strings):
+The SDK supports multiple Azure voice providers with proper object structures (not strings):
 
 ```typescript
-// OpenAI Voices
-const openAIVoice = {
-  type: 'openai',
-  name: 'alloy' // Options: alloy, echo, shimmer, ash, ballad, coral, sage, verse
-};
-
-// Azure Standard Voices  
+// Azure Standard Voices
 const azureVoice = {
   type: 'azure-standard',
-  name: 'en-US-AriaNeural'
+  name: 'en-US-AvaNeural'
 };
 
 // Azure Custom Voices
@@ -277,7 +271,7 @@ const customVoice = {
 
 // Usage in session configuration
 await session.updateSession({
-  voice: openAIVoice, // Use voice object, not string
+  voice: azureVoice, // Use voice object, not string
   // ... other config
 });
 ```
@@ -335,7 +329,7 @@ npm run preview
 ### **Configuration Panel**
 - **Endpoint**: Voice Live service WebSocket URL
 - **API Key**: Your Voice Live API credentials  
-- **Voice Selection**: OpenAI voices (alloy, echo, fable, onyx, nova, shimmer) or Azure Neural voices
+- **Voice Selection**: Azure Neural voices (Ava, Jenny, Guy, DragonHD, etc.)
 - **Instructions**: System prompt for the AI assistant (auto-populated from the selected PA scenario; editable)
 - **Pronunciation Assessment**: Scenario selection (Conversation / Concise / Read Along) and reference-text mode toggle
 
@@ -357,13 +351,6 @@ npm run preview
 - **JSON Details**: Full event data for debugging and learning
 
 ## 🔧 **Configuration Examples**
-
-### **OpenAI Voice Configuration**
-```
-Endpoint: wss://api.openai.com/v1/realtime
-Voice: alloy
-Instructions: You are a helpful AI assistant. Be conversational and engaging.
-```
 
 ### **Azure Voice Configuration**
 ```  

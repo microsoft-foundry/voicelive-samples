@@ -69,8 +69,8 @@ async function basicHandlerPatternExample(): Promise<void> {
       modalities: ['audio', 'text'],
       instructions: 'You are a helpful assistant.',
       voice: {
-        type: 'openai',
-        name: 'alloy',
+        type: 'azure-standard',
+        name: 'en-US-AvaNeural',
       },
       inputAudioFormat: 'pcm16',
       outputAudioFormat: 'pcm16',

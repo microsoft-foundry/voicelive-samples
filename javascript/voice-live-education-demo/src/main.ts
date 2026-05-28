@@ -115,12 +115,40 @@ class WebVoiceAssistantApp {
     // PA scenarios are always available — fill instructions from the selected scenario
     const instructionsTextarea = document.getElementById('instructions') as HTMLTextAreaElement;
     const paRefTextCheckbox = document.getElementById('paWithReferenceText') as HTMLInputElement;
+    const voiceSelect = document.getElementById('voice') as HTMLSelectElement;
+
+    // Read Along supports only DragonHD voices (identified by ':DragonHD' in the value).
+    const isReadAlongVoice = (value: string) => value.includes(':DragonHD');
+    const applyVoiceFilter = (scenario: string) => {
+      const readAlong = scenario === 'readAlong';
+      let firstAllowed: HTMLOptionElement | null = null;
+      Array.from(voiceSelect.options).forEach((option) => {
+        const allowed = !readAlong || isReadAlongVoice(option.value);
+        option.hidden = !allowed;
+        option.disabled = !allowed;
+        if (allowed && !firstAllowed) {
+          firstAllowed = option;
+        }
+      });
+      Array.from(voiceSelect.querySelectorAll('optgroup')).forEach((group) => {
+        const hasVisible = Array.from(group.querySelectorAll('option')).some(
+          (opt) => !(opt as HTMLOptionElement).hidden,
+        );
+        (group as HTMLOptGroupElement).hidden = !hasVisible;
+      });
+      const current = voiceSelect.selectedOptions[0];
+      if ((!current || current.hidden) && firstAllowed) {
+        voiceSelect.value = (firstAllowed as HTMLOptionElement).value;
+      }
+    };
+
     const initialScenario = (document.querySelector('input[name="paScenario"]:checked') as HTMLInputElement)?.value || 'conversation';
     instructionsTextarea.value = this.voiceAssistant.getScenarioInstructions(initialScenario);
     if (initialScenario === 'readAlong') {
       paRefTextCheckbox.checked = false;
       paRefTextCheckbox.disabled = true;
     }
+    applyVoiceFilter(initialScenario);
 
     // Handle PA scenario selection — fill instructions textarea
     const scenarioRadios = document.querySelectorAll('input[name="paScenario"]');
@@ -134,6 +162,7 @@ class WebVoiceAssistantApp {
         } else {
           paRefTextCheckbox.disabled = false;
         }
+        applyVoiceFilter(target.value);
       });
     });
 
