@@ -73,6 +73,7 @@ JavaScript/TypeScript samples showcasing:
 - **MCP Quickstart**: MCP server integration with remote tool calling and approval flow
 - **Model Quickstart**: Direct Voice Live model integration with proactive greetings
 - **Basic Web Voice Assistant**: Browser-based voice assistant with real-time streaming and barge-in support
+- **Voice Live Education Demo**: Browser-based English pronunciation coach that pairs Voice Live with the Azure Speech SDK for real-time pronunciation assessment (Conversation / Concise / Read Along scenarios)
 - **Voice Live Avatar**: Avatar-enabled voice conversations with Docker deployment
 - **Voice Live Car Demo**: Voice-Enabled Car Assistant powered by multiple architectures
 - **Voice Live Interpreter**: Real-time speech translation, speech in and speech out
