@@ -227,8 +227,10 @@ class WebVoiceAssistantApp {
       
       this.connectBtn.textContent = 'Connect';
       this.connectBtn.disabled = false;
+      this.startBtn.textContent = 'Start Conversation';
       this.startBtn.disabled = true;
       this.stopBtn.disabled = true;
+      this.updateAudioStatus('Not Active');
       this.setConfigurationEnabled(true);
       
     } catch (error) {
