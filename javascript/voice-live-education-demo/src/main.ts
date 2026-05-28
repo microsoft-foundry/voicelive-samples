@@ -259,6 +259,20 @@ class WebVoiceAssistantApp {
     elements.forEach((el) => {
       (el as HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement).disabled = !enabled;
     });
+
+    // Re-enabling controls must respect scenario-specific constraints:
+    // Read Along forces "PA with reference text" off and disabled (reference
+    // text comes from the assistant's tool call).
+    if (enabled) {
+      const currentScenario = (document.querySelector('input[name="paScenario"]:checked') as HTMLInputElement)?.value;
+      if (currentScenario === 'readAlong') {
+        const paRefTextCheckbox = document.getElementById('paWithReferenceText') as HTMLInputElement | null;
+        if (paRefTextCheckbox) {
+          paRefTextCheckbox.checked = false;
+          paRefTextCheckbox.disabled = true;
+        }
+      }
+    }
   }
 
   private getConfiguration(): VoiceAssistantConfig {
