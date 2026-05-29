@@ -492,10 +492,12 @@ export class VoiceAssistant {
       // Configure session
       await this.configureSession(config);
 
-      // Setup Speech config for PA
+      // Setup Speech config for PA. The Speech SDK's fromEndpoint expects a raw
+      // subscription key string here, not a credential object — passing an
+      // AzureKeyCredential may cause PA authentication to fail.
       this.speechConfig = speechSDK.SpeechConfig.fromEndpoint(
         new URL(config.endpoint),
-        this.credential,
+        config.apiKey,
       );
       this.speechConfig.setProperty(
         speechSDK.PropertyId.Speech_SegmentationSilenceTimeoutMs,
