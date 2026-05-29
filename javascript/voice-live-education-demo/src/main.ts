@@ -96,7 +96,6 @@ class WebVoiceAssistantApp {
 
     // PA scenarios are always available — fill instructions from the selected scenario
     const instructionsTextarea = document.getElementById('instructions') as HTMLTextAreaElement;
-    const paRefTextCheckbox = document.getElementById('paWithReferenceText') as HTMLInputElement;
     const voiceSelect = document.getElementById('voice') as HTMLSelectElement;
 
     // Read Along supports only DragonHD voices (identified by ':DragonHD' in the value).
@@ -126,10 +125,6 @@ class WebVoiceAssistantApp {
 
     const initialScenario = (document.querySelector('input[name="paScenario"]:checked') as HTMLInputElement)?.value || 'conversation';
     instructionsTextarea.value = this.voiceAssistant.getScenarioInstructions(initialScenario);
-    if (initialScenario === 'readAlong') {
-      paRefTextCheckbox.checked = false;
-      paRefTextCheckbox.disabled = true;
-    }
     applyVoiceFilter(initialScenario);
 
     // Handle PA scenario selection — fill instructions textarea
@@ -138,12 +133,6 @@ class WebVoiceAssistantApp {
       radio.addEventListener('change', (e) => {
         const target = e.target as HTMLInputElement;
         instructionsTextarea.value = this.voiceAssistant.getScenarioInstructions(target.value);
-        if (target.value === 'readAlong') {
-          paRefTextCheckbox.checked = false;
-          paRefTextCheckbox.disabled = true;
-        } else {
-          paRefTextCheckbox.disabled = false;
-        }
         applyVoiceFilter(target.value);
       });
     });
@@ -259,20 +248,6 @@ class WebVoiceAssistantApp {
     elements.forEach((el) => {
       (el as HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement).disabled = !enabled;
     });
-
-    // Re-enabling controls must respect scenario-specific constraints:
-    // Read Along forces "PA with reference text" off and disabled (reference
-    // text comes from the assistant's tool call).
-    if (enabled) {
-      const currentScenario = (document.querySelector('input[name="paScenario"]:checked') as HTMLInputElement)?.value;
-      if (currentScenario === 'readAlong') {
-        const paRefTextCheckbox = document.getElementById('paWithReferenceText') as HTMLInputElement | null;
-        if (paRefTextCheckbox) {
-          paRefTextCheckbox.checked = false;
-          paRefTextCheckbox.disabled = true;
-        }
-      }
-    }
   }
 
   private getConfiguration(): VoiceAssistantConfig {
@@ -281,7 +256,6 @@ class WebVoiceAssistantApp {
     const voice = (document.getElementById('voice') as HTMLSelectElement).value;
     const instructions = (document.getElementById('instructions') as HTMLTextAreaElement).value;
     const debugMode = (document.getElementById('debugMode') as HTMLInputElement).checked;
-    const paWithReferenceText = (document.getElementById('paWithReferenceText') as HTMLInputElement).checked;
     const paScenarioElement = document.querySelector('input[name="paScenario"]:checked') as HTMLInputElement;
     const paScenario = paScenarioElement?.value || 'conversation';
     const enableLatencyTracking = (document.getElementById('enableLatencyTracking') as HTMLInputElement).checked;
@@ -300,7 +274,6 @@ class WebVoiceAssistantApp {
       voice,
       instructions,
       debugMode,
-      paWithReferenceText,
       paScenario,
       enableLatencyTracking
     };

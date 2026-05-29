@@ -24,19 +24,19 @@ Open http://localhost:3000, then:
 | **Concise** | Same coaching, capped at ≤2 short sentences / <30 words. |
 | **Read Along** | Bilingual (Chinese + English) guided read-along. The assistant calls a `set_reference_text` tool to set the expected sentence; PA scores the user's read-back against it. The voice picker is restricted to DragonHD voices. |
 
-## PA Modes
+## Pronunciation Assessment
 
-- **With reference text** — wait for the full user transcription, then run PA. Higher accuracy.
-- **Streaming** — push audio to the Speech recognizer as the user speaks. Lower latency.
+PA always runs in streaming mode: audio is pushed to the Speech recognizer as the user speaks, for lower latency.
 
-Toggle via the **"PA with reference text"** checkbox (auto-disabled in Read Along — the reference text comes from the tool call).
+- **Read Along** — when the assistant offers a new sentence to read, it calls the `set_reference_text` tool to supply the target text; the next user turn is then scored against it (omissions / insertions / mispronunciations). Turns without a new tool call run without reference text.
+- **Conversation / Concise** — no reference text; PA scores what the recognizer transcribes from the user's speech.
 
 ## Features
 
 - **Per-word PA visualization** — words colored by score / error type (good / mispronunciation / omission / insertion); score and error type in the tooltip.
 - **Real-time conversation UX** — streaming assistant text + audio, typing cursor, barge-in support, mic level meter, live event panel.
 - **Optional latency metrics** — PA start→end, speech end→PA ready, PA ready→first TTS chunk, speech end→first TTS chunk.
-- **Scenario-aware UI** — switching scenarios refreshes the instructions, toggles the reference-text option, and filters the voice list.
+- **Scenario-aware UI** — switching scenarios refreshes the instructions and filters the voice list.
 
 ## Development
 
