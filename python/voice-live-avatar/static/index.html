@@ -73,15 +73,25 @@
                         <div id="modelField">
                             <label>Model
                                 <select id="model">
-                                    <option value="gpt-4o-realtime">GPT Realtime</option>
-                                    <option value="gpt-4o-mini-realtime">GPT Realtime Mini</option>
+                                    <option value="gpt-realtime-1.5">GPT Realtime 1.5</option>
+                                    <option value="azure-realtime">Azure Realtime</option>
+                                    <option value="gpt-realtime">GPT Realtime</option>
+                                    <option value="gpt-realtime-mini">GPT Realtime Mini</option>
+                                    <option value="gpt-5.4">GPT-5.4 (Cascaded)</option>
+                                    <option value="gpt-5.3-chat">GPT-5.3 Chat (Cascaded)</option>
+                                    <option value="gpt-5.2">GPT-5.2 (Cascaded)</option>
+                                    <option value="gpt-5.2-chat">GPT-5.2 Chat (Cascaded)</option>
+                                    <option value="gpt-5.1">GPT-5.1 (Cascaded)</option>
+                                    <option value="gpt-5.1-chat">GPT-5.1 Chat (Cascaded)</option>
+                                    <option value="gpt-5">GPT-5 (Cascaded)</option>
+                                    <option value="gpt-5-mini">GPT-5 Mini (Cascaded)</option>
+                                    <option value="gpt-5-nano">GPT-5 Nano (Cascaded)</option>
+                                    <option value="gpt-5-chat">GPT-5 Chat (Cascaded)</option>
                                     <option value="gpt-4.1">GPT-4.1 (Cascaded)</option>
                                     <option value="gpt-4.1-mini">GPT-4.1 Mini (Cascaded)</option>
                                     <option value="gpt-4.1-nano">GPT-4.1 Nano (Cascaded)</option>
                                     <option value="gpt-4o">GPT-4o (Cascaded)</option>
                                     <option value="gpt-4o-mini">GPT-4o Mini (Cascaded)</option>
-                                    <option value="phi4-mm">Phi4-MM Realtime</option>
-                                    <option value="phi4-mini">Phi4 Mini (Cascaded)</option>
                                 </select>
                             </label>
                         </div>
@@ -183,6 +193,7 @@
                                     <option value="standard" selected>Standard Voices</option>
                                     <option value="custom">Custom Voice</option>
                                     <option value="personal">Personal Voice</option>
+                                    <option value="azure-realtime-native">Azure Realtime Native</option>
                                 </select>
                             </label>
 
@@ -247,6 +258,25 @@
                                             <option value="sage">Sage (OpenAI)</option>
                                             <option value="shimmer">Shimmer (OpenAI)</option>
                                             <option value="verse">Verse (OpenAI)</option>
+                                    </select>
+                                </label>
+                            </div>
+
+                            <!-- Native Voice (azure-realtime model) -->
+                            <div id="nativeVoiceField" class="voice-variant standard-border" style="display:none">
+                                <label>Voice
+                                    <select id="nativeVoiceName">
+                                        <option value="aarti">Aarti</option>
+                                        <option value="andrew">Andrew</option>
+                                        <option value="ava" selected>Ava</option>
+                                        <option value="denise">Denise</option>
+                                        <option value="elsa">Elsa</option>
+                                        <option value="florian">Florian</option>
+                                        <option value="francisca">Francisca</option>
+                                        <option value="meera">Meera</option>
+                                        <option value="xiaoxiao">Xiaoxiao</option>
+                                        <option value="ximena">Ximena</option>
+                                        <option value="yunxi">Yunxi</option>
                                     </select>
                                 </label>
                             </div>

@@ -113,7 +113,7 @@ async def health_check():
 async def get_config():
     """Return default configuration to the frontend."""
     return {
-        "model": os.getenv("VOICELIVE_MODEL", "gpt-4o-realtime"),
+        "model": os.getenv("VOICELIVE_MODEL", "gpt-realtime"),
         "voice": os.getenv("VOICELIVE_VOICE", "en-US-AvaMultilingualNeural"),
         "endpoint": os.getenv("AZURE_VOICELIVE_ENDPOINT", ""),
         "hasApiKey": bool(os.getenv("AZURE_VOICELIVE_API_KEY")),

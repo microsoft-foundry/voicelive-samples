@@ -67,7 +67,17 @@ function setupUIBindings() {
     // Mode change
     document.getElementById('mode').addEventListener('change', updateConditionalFields);
     // Model change
-    document.getElementById('model').addEventListener('change', updateConditionalFields);
+    document.getElementById('model').addEventListener('change', (e) => {
+        const voiceTypeEl = document.getElementById('voiceType');
+        if (e.target.value === 'azure-realtime') {
+            voiceTypeEl.value = 'azure-realtime-native';
+            const nativeEl = document.getElementById('nativeVoiceName');
+            if (nativeEl) nativeEl.value = 'ava';
+        } else if (voiceTypeEl.value === 'azure-realtime-native') {
+            voiceTypeEl.value = 'standard';
+        }
+        updateConditionalFields();
+    });
     // Voice type change
     document.getElementById('voiceType').addEventListener('change', updateConditionalFields);
     // Voice name change
@@ -198,7 +208,11 @@ function updateConditionalFields() {
     const srModel = document.getElementById('srModel').value;
 
     // Cascaded models
-    const cascadedModels = ['gpt-4.1', 'gpt-4.1-mini', 'gpt-4.1-nano', 'gpt-4o', 'gpt-4o-mini', 'phi4-mm', 'phi4-mini'];
+    const cascadedModels = [
+        'gpt-5.4', 'gpt-5.3-chat', 'gpt-5.2', 'gpt-5.2-chat', 'gpt-5.1', 'gpt-5.1-chat',
+        'gpt-5', 'gpt-5-mini', 'gpt-5-nano', 'gpt-5-chat',
+        'gpt-4.1', 'gpt-4.1-mini', 'gpt-4.1-nano', 'gpt-4o', 'gpt-4o-mini',
+    ];
     const isCascaded = cascadedModels.includes(model);
     const isRealtime = model && model.includes('realtime');
 
@@ -229,11 +243,17 @@ function updateConditionalFields() {
     show('standardVoiceField', voiceType === 'standard');
     show('customVoiceFields', voiceType === 'custom');
     show('personalVoiceFields', voiceType === 'personal');
+    show('nativeVoiceField', voiceType === 'azure-realtime-native');
 
     // Voice temperature (DragonHD or personal voice)
     const isDragonHD = voiceName && voiceName.includes('DragonHD');
     const isPersonal = voiceType === 'personal';
     show('voiceTempField', isDragonHD || isPersonal);
+
+    show('voiceSpeedField', voiceType !== 'azure-realtime-native');
+
+    const nativeOpt = document.querySelector('#voiceType option[value="azure-realtime-native"]');
+    if (nativeOpt) nativeOpt.hidden = (model !== 'azure-realtime');
 
     // Avatar settings
     show('avatarSettings', avatarEnabled);
@@ -317,11 +337,15 @@ function gatherConfig() {
 
     const voiceSpeed = parseFloat(document.getElementById('voiceSpeed').value) / 100;
 
+    const voiceName = voiceType === 'azure-realtime-native'
+        ? document.getElementById('nativeVoiceName').value
+        : document.getElementById('voiceName').value;
+
     const config = {
         mode: mode,
         model: model,
         voiceType: voiceType,
-        voiceName: document.getElementById('voiceName').value,
+        voiceName: voiceName,
         voiceSpeed: voiceSpeed,
         voiceTemperature: parseFloat(document.getElementById('voiceTemperature').value),
         voiceDeploymentId: document.getElementById('voiceDeploymentId').value,
