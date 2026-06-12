@@ -257,7 +257,10 @@ class VoiceSessionHandler:
         voice_speed = config.get("voiceSpeed", 1.0)
 
         if voice_type == "azure-realtime-native":
-            native_name = voice_name or "ava"
+            # Native voice names are simple lowercase ids (e.g. "ava"). Reject anything that
+            # looks like a standard voice id (contains "-") so the env default doesn't leak in.
+            client_voice = config.get("voiceName", "")
+            native_name = client_voice if client_voice and "-" not in client_voice else "ava"
             return AzureVoice({"type": "azure-realtime-native", "name": native_name})
 
         if voice_type == "custom":

@@ -55,7 +55,11 @@ async function fetchServerConfig() {
         const resp = await fetch('/api/config');
         const config = await resp.json();
         if (config.endpoint) document.getElementById('endpoint').value = config.endpoint;
-        if (config.model) document.getElementById('model').value = config.model;
+        if (config.model) {
+            const modelEl = document.getElementById('model');
+            modelEl.value = config.model;
+            modelEl.dispatchEvent(new Event('change'));
+        }
         if (config.voice) document.getElementById('voiceName').value = config.voice;
     } catch (e) {
         console.log('No server config available, using defaults');
@@ -248,7 +252,7 @@ function updateConditionalFields() {
     // Voice temperature (DragonHD or personal voice)
     const isDragonHD = voiceName && voiceName.includes('DragonHD');
     const isPersonal = voiceType === 'personal';
-    show('voiceTempField', isDragonHD || isPersonal);
+    show('voiceTempField', voiceType !== 'azure-realtime-native' && (isDragonHD || isPersonal));
 
     show('voiceSpeedField', voiceType !== 'azure-realtime-native');
 
