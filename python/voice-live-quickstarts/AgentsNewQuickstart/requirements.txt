@@ -1,4 +1,4 @@
-azure-ai-projects>=2.0.0b3
+azure-ai-projects>=2.3.0
 openai
 azure-ai-voicelive>=1.2.0b4
 pyaudio
