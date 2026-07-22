@@ -47,7 +47,7 @@ The avatar feature is currently available in the following service regions: Sout
 
    - `AZURE_VOICELIVE_ENDPOINT` - Your Azure AI Services endpoint
    - `AZURE_VOICELIVE_API_KEY` - Your API key
-   - `VOICELIVE_MODEL` - Model to use (default: `gpt-4o-realtime`)
+   - `VOICELIVE_MODEL` - Model to use (default: `gpt-realtime`)
    - `VOICELIVE_VOICE` - Voice name (default: `en-US-AvaMultilingualNeural`)
 
 3. **Run the server:**

@@ -19,6 +19,7 @@ from azure.ai.voicelive.models import (
     AzureSemanticDetection,
     AzureSemanticVad,
     AzureStandardVoice,
+    AzureVoice,
     AudioInputTranscriptionOptions,
     Background,
     ClientEventSessionAvatarConnect,
@@ -69,7 +70,7 @@ class VoiceSessionHandler:
         """Start the Voice Live session."""
         try:
             self.is_running = True
-            model = self.config.get("model", os.getenv("VOICELIVE_MODEL", "gpt-4o-realtime"))
+            model = self.config.get("model", os.getenv("VOICELIVE_MODEL", "gpt-realtime"))
             mode = self.config.get("mode", "model")
 
             # Build connection model string based on mode
@@ -115,7 +116,7 @@ class VoiceSessionHandler:
         """Configure the Voice Live session with avatar, voice, and other settings."""
         config = self.config
         mode = config.get("mode", "model")
-        model = config.get("model", "gpt-4o-realtime")
+        model = config.get("model", "gpt-realtime")
 
         # Build voice configuration
         voice_config = self._build_voice_config(config)
@@ -254,6 +255,13 @@ class VoiceSessionHandler:
         voice_name = config.get("voiceName", os.getenv("VOICELIVE_VOICE", "en-US-AvaMultilingualNeural"))
         voice_temperature = config.get("voiceTemperature", 0.9)
         voice_speed = config.get("voiceSpeed", 1.0)
+
+        if voice_type == "azure-realtime-native":
+            # Native voice names are simple lowercase ids (e.g. "ava"). Reject anything that
+            # looks like a standard voice id (contains "-") so the env default doesn't leak in.
+            client_voice = config.get("voiceName", "")
+            native_name = client_voice if client_voice and "-" not in client_voice else "ava"
+            return AzureVoice({"type": "azure-realtime-native", "name": native_name})
 
         if voice_type == "custom":
             custom_voice_name = config.get("customVoiceName", "")
