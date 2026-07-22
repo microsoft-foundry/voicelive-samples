@@ -55,6 +55,17 @@ A browser-based voice assistant demonstrating Azure Voice Live SDK integration i
 - Audio level visualization
 - Support for OpenAI and Azure Neural voices
 
+### [Live Reference AEC](./live-reference-aec/)
+
+A browser sample showing how to stream stereo audio (microphone + a tap of your app's speaker playback) to Azure Voice Live so the service cancels echo using the exact signal the speaker plays. This feature is called Live Reference AEC. Available at api-version `2026-07-15` and later.
+
+**Key Features:**
+- Stereo PCM16 streaming with mic on channel 0 and speaker reference on channel 1
+- `AudioWorklet` interleaver and a Web Audio playback bus (speakers + reference)
+- Session config via `inputAudioEchoCancellation` (`referenceSource: "client"`, `channels: 2`)
+- Mic capture with browser echo cancellation, noise suppression, and AGC disabled
+- Barge-in support and streaming transcription
+
 ### [Voice Live Avatar](./voice-live-avatar/)
 
 A Dockerized sample demonstrating Azure Voice Live API with avatar integration, enabling visual avatar representation during voice conversations.
@@ -137,6 +148,7 @@ All samples require:
 | MCP Quickstart | [Node.js 18+](https://nodejs.org/) with npm |
 | Model Quickstart | [Node.js 18+](https://nodejs.org/) with npm |
 | Basic Web Voice Assistant | [Node.js 18+](https://nodejs.org/) with npm |
+| Live Reference AEC | [Node.js 22+](https://nodejs.org/) with npm |
 | Voice Live Avatar | [Docker](https://www.docker.com/get-started) |
 | Voice Live Car Demo | [Node.js 18+](https://nodejs.org/) with npm |
 | Voice Live Education Demo | [Node.js 18+](https://nodejs.org/) with npm |

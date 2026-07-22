@@ -74,6 +74,7 @@ JavaScript/TypeScript samples showcasing:
 - **Model Quickstart**: Direct Voice Live model integration with proactive greetings
 - **Basic Web Voice Assistant**: Browser-based voice assistant with real-time streaming and barge-in support
 - **Voice Live Education Demo**: Browser-based English pronunciation coach that pairs Voice Live with the Azure Speech SDK for real-time pronunciation assessment (Conversation / Concise / Read Along scenarios)
+- **Live Reference AEC**: Browser sample that streams the mic plus the app's own speaker playback as a stereo reference so the service can cancel echo against the exact signal played
 - **Voice Live Avatar**: Avatar-enabled voice conversations with Docker deployment
 - **Voice Live Car Demo**: Voice-Enabled Car Assistant powered by multiple architectures
 - **Voice Live Interpreter**: Real-time speech translation, speech in and speech out
