@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Voice Live - Live Reference AEC</title>
+    <link rel="stylesheet" href="/style.css" />
+  </head>
+  <body>
+    <main>
+      <header>
+        <h1>Live Reference AEC</h1>
+        <p>
+          Streams stereo audio to Azure Voice Live — microphone on channel 0 and your
+          app's speaker playback on channel 1 — so the service can cancel echo using the
+          exact signal the speaker plays.
+        </p>
+      </header>
+
+      <section class="config">
+        <label>
+          Endpoint
+          <input id="endpoint" type="text" placeholder="https://your-resource.cognitiveservices.azure.com" />
+        </label>
+        <label>
+          API Key
+          <input id="apiKey" type="password" placeholder="Your Voice Live API key" />
+        </label>
+        <div class="row">
+          <label>
+            Model
+            <input id="model" type="text" value="gpt-realtime" />
+          </label>
+          <label>
+            Voice
+            <input id="voice" type="text" value="en-US-AvaNeural" />
+          </label>
+        </div>
+        <label>
+          Instructions
+          <textarea id="instructions" rows="2">You are a helpful assistant.</textarea>
+        </label>
+      </section>
+
+      <section class="controls">
+        <button id="start">Start</button>
+        <button id="stop" disabled>Stop</button>
+        <div class="status">
+          <span>Connection: <span id="connectionStatus" class="badge disconnected">disconnected</span></span>
+          <span>Assistant: <span id="assistantStatus">idle</span></span>
+        </div>
+      </section>
+
+      <section id="transcript" class="transcript" aria-live="polite"></section>
+    </main>
+
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>
