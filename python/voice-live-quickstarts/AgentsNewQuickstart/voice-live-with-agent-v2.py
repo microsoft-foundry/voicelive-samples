@@ -14,7 +14,7 @@ from azure.core.credentials import AzureKeyCredential
 from azure.core.credentials_async import AsyncTokenCredential
 from azure.identity.aio import AzureCliCredential
 
-from azure.ai.voicelive.aio import connect, AgentSessionConfig
+from azure.ai.voicelive.aio import connect
 from azure.ai.voicelive.models import (
     InputAudioFormat,
     Modality,
@@ -244,7 +244,7 @@ class BasicVoiceAssistant:
     """
     Basic voice assistant implementing the VoiceLive SDK patterns with Foundry Agent.
     
-    Uses the new AgentSessionConfig for strongly-typed agent configuration at connection time.
+    Uses flattened connect() keyword arguments for agent configuration at connection time.
     This sample also demonstrates how to collect a conversation log of user and agent interactions.
     """
 
@@ -264,15 +264,12 @@ class BasicVoiceAssistant:
         self.endpoint = endpoint
         self.credential = credential
         self.voice = voice
-        # Build AgentSessionConfig internally
-        self.agent_config: AgentSessionConfig = {
-            "agent_name": agent_name,
-            "agent_version": agent_version if agent_version else None,
-            "project_name": project_name,
-            "conversation_id": conversation_id if conversation_id else None,
-            "foundry_resource_override": foundry_resource_override if foundry_resource_override else None, 
-            "authentication_identity_client_id": agent_authentication_identity_client_id if agent_authentication_identity_client_id and foundry_resource_override else None,                
-        }        
+        self.agent_name = agent_name
+        self.project_name = project_name
+        self.agent_version = agent_version
+        self.conversation_id = conversation_id
+        self.foundry_resource_override = foundry_resource_override
+        self.agent_authentication_identity_client_id = agent_authentication_identity_client_id
 
         self.connection: Optional["VoiceLiveConnection"] = None
         self.audio_processor: Optional[AudioProcessor] = None
@@ -288,20 +285,25 @@ class BasicVoiceAssistant:
         try:
             logger.info(
                 "Connecting to VoiceLive API with agent %s for project %s (version=%s, conversation_id=%s, foundry_override=%s, auth_identity=%s)",
-                self.agent_config.get("agent_name"),
-                self.agent_config.get("project_name"),
-                self.agent_config.get("agent_version"),
-                self.agent_config.get("conversation_id"),
-                self.agent_config.get("foundry_resource_override"),
-                self.agent_config.get("authentication_identity_client_id")
+                self.agent_name,
+                self.project_name,
+                self.agent_version,
+                self.conversation_id,
+                self.foundry_resource_override,
+                self.agent_authentication_identity_client_id,
             )
 
-            # Connect using AgentSessionConfig (new SDK pattern)
+            # Connect using flattened keyword arguments.
             async with connect(
                 endpoint=self.endpoint,
                 credential=self.credential,
                 api_version="2026-01-01-preview",
-                agent_config=self.agent_config,
+                agent_name=self.agent_name,
+                project_name=self.project_name,
+                agent_version=self.agent_version,
+                conversation_id=self.conversation_id,
+                foundry_resource_override=self.foundry_resource_override,
+                authentication_identity_client_id=self.agent_authentication_identity_client_id,
             ) as connection:
                 conn = connection
                 self.connection = conn
