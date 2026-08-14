@@ -8,9 +8,9 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="Azure.AI.VoiceLive" Version="1.1.0-beta.3" />
-    <PackageReference Include="Azure.Identity" Version="1.13.*" />
-    <PackageReference Include="DotNetEnv" Version="3.1.*" />
+    <PackageReference Include="Azure.AI.VoiceLive" Version="1.2.0" />
+    <PackageReference Include="Azure.Identity" Version="1.21.*" />
+    <PackageReference Include="DotNetEnv" Version="3.2.*" />
   </ItemGroup>
 
 </Project>
