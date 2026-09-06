@@ -278,7 +278,7 @@ class VoiceLiveHandler:
                 logger.error(f"[{self.client_id}] Error forwarding audio: {e}")
 
     async def interrupt(self) -> None:
-        """Cancel the current response (user barge-in)."""
+        """Cancel the current response on an explicit user interrupt request."""
         if self.connection:
             try:
                 await self.connection.response.cancel()
@@ -472,10 +472,6 @@ class VoiceLiveHandler:
         elif t == ServerEventType.INPUT_AUDIO_BUFFER_SPEECH_STARTED:
             await self.send({"type": "status", "state": "listening"})
             await self.send({"type": "stop_playback"})
-            try:
-                await connection.response.cancel()
-            except Exception:
-                pass
 
         # -- User stops speaking ------------------------------------------
         elif t == ServerEventType.INPUT_AUDIO_BUFFER_SPEECH_STOPPED:

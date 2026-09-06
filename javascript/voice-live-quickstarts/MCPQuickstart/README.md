@@ -76,10 +76,10 @@ For approval-required servers, once the user approves the first call, subsequent
 
 Users will naturally try to interrupt or ask *"Are you still there?"* during long tool calls. Rather than ignoring this, the quickstart injects a system message so the model can acknowledge the user and respond to what they said. If the original MCP call completes later, its result is introduced as a **late result** (e.g. *"By the way, those results from earlier just came in..."*). Note: since MCP calls cannot be cancelled, the call continues running in the background regardless of what the user says.
 
-Barge-in in the MCP quickstart is more complex than in the Model or Agents quickstarts. Those simpler samples have a trivial `onResponseDone` handler (just reset flags), so cancelling a response is straightforward — the cancelled response's `onResponseDone` is a harmless no-op. In the MCP quickstart, `onResponseDone` processes **deferred actions** — pending approval prompts, queued MCP results, and deferred `response.create` calls. Without protection, the cancelled response's `onResponseDone` would immediately trigger a new response that overlaps the user's speech.
+Barge-in in the MCP quickstart is more complex than in the Model or Agents quickstarts. The service automatically interrupts the active response when speech starts, while the client discards buffered playback audio. The simpler samples have a trivial `onResponseDone` handler that logs completion. In the MCP quickstart, `onResponseDone` processes **deferred actions** — pending approval prompts, queued MCP results, and deferred `response.create` calls. Without protection, the interrupted response's `onResponseDone` would immediately trigger a new response that overlaps the user's speech.
 
 To prevent this, the quickstart uses a `_bargeInActive` flag:
-1. **Set `true`** in `onInputAudioBufferSpeechStarted` just before calling `response.cancel`
+1. **Set `true`** in `onInputAudioBufferSpeechStarted` when a response is active, so its service-driven completion skips deferred actions
 2. **Checked** at the top of `onResponseDone` — if set, all deferred processing is skipped and the flag is cleared
 3. All deferred flags (`_needsResponseCreate`, `_mcpResultsPending`) are also cleared unconditionally on barge-in
 

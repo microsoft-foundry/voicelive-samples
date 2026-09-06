@@ -281,8 +281,6 @@ class BasicVoiceAssistant {
     this._session = null;
     this._audio = new AudioProcessor(!opts.noAudio, opts.audioInputDevice);
     this._greetingSent = false;
-    this._activeResponse = false;
-    this._responseApiDone = false;
   }
   // </agent_config>
 
@@ -343,27 +341,10 @@ class BasicVoiceAssistant {
       onInputAudioBufferSpeechStarted: async () => {
         console.log("🎤 Listening...");
         this._audio.skipPendingAudio();
-
-        // Cancel in-progress response (barge-in)
-        if (this._activeResponse && !this._responseApiDone) {
-          try {
-            await session.sendEvent({ type: "response.cancel" });
-          } catch (err) {
-            const msg = err?.message ?? "";
-            if (!msg.toLowerCase().includes("no active response")) {
-              console.warn("[barge-in] Cancel failed:", msg);
-            }
-          }
-        }
       },
 
       onInputAudioBufferSpeechStopped: async () => {
         console.log("🤔 Processing...");
-      },
-
-      onResponseCreated: async () => {
-        this._activeResponse = true;
-        this._responseApiDone = false;
       },
 
       onResponseAudioDelta: async (event) => {
@@ -378,16 +359,10 @@ class BasicVoiceAssistant {
 
       onResponseDone: async () => {
         console.log("✅ Response complete");
-        this._activeResponse = false;
-        this._responseApiDone = true;
       },
 
       onServerError: async (event) => {
         const msg = event.error?.message ?? "";
-        if (msg.includes("Cancellation failed: no active response")) {
-          // Benign – ignore
-          return;
-        }
         console.error(`❌ VoiceLive error: ${msg}`);
       },
 

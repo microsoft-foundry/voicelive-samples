@@ -248,15 +248,6 @@ export class VoiceHandler {
       onInputAudioBufferSpeechStarted: async (_event, _context) => {
         this.sendMessage({ type: "status", state: "listening" });
         this.sendMessage({ type: "stop_playback" });
-        // Cancel any in-progress response (barge-in)
-        try {
-          await this.session?.sendEvent({
-            type: KnownClientEventType.ResponseCancel,
-            eventId: `evt_bargein_${Date.now()}`,
-          });
-        } catch (_) {
-          // Ignore — may not have an active response
-        }
       },
 
       onInputAudioBufferSpeechStopped: async (_event, _context) => {
