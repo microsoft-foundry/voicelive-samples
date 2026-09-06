@@ -141,7 +141,6 @@ namespace Azure.AI.VoiceLive.Samples
         private AudioProcessor? _audioProcessor;
         private bool _disposed;
         private bool _responseActive;
-        private bool _canCancelResponse;
 
         // Voice-based MCP approval state
         private record ApprovalInfo(string ApprovalId, string ServerLabel, string FunctionName);
@@ -320,10 +319,8 @@ namespace Azure.AI.VoiceLive.Samples
                     Console.WriteLine("🎤 Listening...");
                     if (_audioProcessor != null)
                         await _audioProcessor.StopPlaybackAsync().ConfigureAwait(false);
-                    if (_responseActive && _canCancelResponse)
+                    if (_responseActive)
                     {
-                        try { await _session!.CancelResponseAsync(cancellationToken).ConfigureAwait(false); }
-                        catch { }
                         try { await _session!.ClearStreamingAudioAsync(cancellationToken).ConfigureAwait(false); }
                         catch { }
                     }
@@ -375,7 +372,6 @@ namespace Azure.AI.VoiceLive.Samples
 
                 case SessionUpdateResponseCreated:
                     _responseActive = true;
-                    _canCancelResponse = true;
                     break;
 
                 case SessionUpdateResponseAudioDelta audioDelta:
@@ -389,7 +385,6 @@ namespace Azure.AI.VoiceLive.Samples
 
                 case SessionUpdateResponseDone:
                     _responseActive = false;
-                    _canCancelResponse = false;
                     WriteLog("--- Response complete ---");
                     // If an approval prompt needs to be injected, do it now
                     if (_approvalPromptNeeded && _pendingApproval != null)
@@ -414,25 +409,21 @@ namespace Azure.AI.VoiceLive.Samples
 
                 case SessionUpdateError errorEvent:
                     var msg = errorEvent.Error?.Message ?? "";
-                    if (!msg.Contains("no active response", StringComparison.OrdinalIgnoreCase))
+                    // Suppress non-fatal interim/collision errors
+                    if (msg.Contains("interim response", StringComparison.OrdinalIgnoreCase))
                     {
-                        // Suppress non-fatal interim/collision errors
-                        if (msg.Contains("interim response", StringComparison.OrdinalIgnoreCase))
-                        {
-                            _logger.LogWarning("Interim response not supported with this model pipeline (non-fatal)");
-                        }
-                        else if (msg.Contains("active response", StringComparison.OrdinalIgnoreCase))
-                        {
-                            _logger.LogDebug("Response collision (expected during MCP flow): {Message}", msg);
-                        }
-                        else
-                        {
-                            Console.WriteLine($"❌ Error: {msg}");
-                            WriteLog($"ERROR: {msg}");
-                        }
+                        _logger.LogWarning("Interim response not supported with this model pipeline (non-fatal)");
+                    }
+                    else if (msg.Contains("active response", StringComparison.OrdinalIgnoreCase))
+                    {
+                        _logger.LogDebug("Response collision (expected during MCP flow): {Message}", msg);
+                    }
+                    else
+                    {
+                        Console.WriteLine($"❌ Error: {msg}");
+                        WriteLog($"ERROR: {msg}");
                     }
                     _responseActive = false;
-                    _canCancelResponse = false;
                     break;
 
                 // Transcription event — used for voice-based approval resolution

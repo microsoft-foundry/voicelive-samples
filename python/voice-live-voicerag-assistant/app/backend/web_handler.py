@@ -355,7 +355,7 @@ class WebSocketVoiceClient:
             # Speech detection events
             elif event_type == ServerEventType.INPUT_AUDIO_BUFFER_SPEECH_STARTED:
                 logger.info("🎤 User started speaking")
-                await self._handle_user_interruption(connection)
+                await self._handle_user_interruption()
 
             elif event_type == ServerEventType.INPUT_AUDIO_BUFFER_SPEECH_STOPPED:
                 logger.info("🎤 User stopped speaking")
@@ -639,26 +639,16 @@ class WebSocketVoiceClient:
         self.connection = None
         logger.info("Voice client cleaned up")
 
-    async def _handle_user_interruption(self, connection):
+    async def _handle_user_interruption(self):
         """Handle user interrupting the assistant by speaking."""
         try:
-            # 1. Stop current audio playback via WebSocket
+            # Stop current audio playback via WebSocket
             await self.bridge.send_message(self.client_id, {
                 "type": "stop_playback",
                 "reason": "user_interruption",
                 "timestamp": asyncio.get_event_loop().time()
             })
-            
-            # 2. Cancel any ongoing response from VoiceLive API
-            try:
-                await connection.response.cancel()
-                logger.info("Cancelled ongoing response due to user interruption")
-            except Exception as e:
-                logger.debug(f"No response to cancel: {e}")
-                
-            # 3. Clear audio buffer if needed
-            # await connection.input_audio_buffer.clear()  # Uncomment if available
-            
+
         except Exception as e:
             logger.error(f"Error handling user interruption: {e}")
 

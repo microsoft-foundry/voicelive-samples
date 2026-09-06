@@ -116,7 +116,7 @@ node model-quickstart.js --greeting-text "Welcome! I'm your AI assistant. How ca
   - echo cancellation + noise reduction
   - input audio transcription (`azure-speech`)
 - Real-time microphone streaming and speaker playback
-- Barge-in handling (`response.cancel` when user interrupts)
+- Barge-in handling (service-managed response interruption and immediate local playback cleanup)
 - Proactive greeting support (default: on):
   - LLM-generated (default) — adaptive, context-aware greetings
   - Pre-defined (`--greeting-text`) — deterministic, branded messaging

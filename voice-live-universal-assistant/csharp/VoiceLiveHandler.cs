@@ -460,7 +460,6 @@ public class VoiceLiveHandler
             case SessionUpdateInputAudioBufferSpeechStarted:
                 await _sendMessage(new Dictionary<string, object> { ["type"] = "status", ["state"] = "listening" });
                 await _sendMessage(new Dictionary<string, object> { ["type"] = "stop_playback" });
-                try { await _session!.CancelResponseAsync(); } catch { }
                 break;
 
             // -- User stops speaking ------------------------------------------

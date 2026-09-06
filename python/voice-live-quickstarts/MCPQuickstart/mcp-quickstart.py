@@ -276,7 +276,6 @@ class MCPVoiceAssistant:
         self.audio_processor: Optional[AudioProcessor] = None
         self.session_ready = False
         self._active_response = False
-        self._response_api_done = False
         self._pending_approval: Optional[dict] = None  # Currently active approval request
         self._approval_queue: list[dict] = []  # Queued approvals waiting to be asked
         self._approval_prompt_needed = False  # True when we need to inject the prompt at next RESPONSE_DONE
@@ -461,13 +460,6 @@ class MCPVoiceAssistant:
                 self._needs_response_create = False
                 self._mcp_results_pending = False
 
-            if self._active_response and not self._response_api_done:
-                try:
-                    await conn.response.cancel()
-                except Exception as e:
-                    if "no active response" not in str(e).lower():
-                        logger.warning("Cancel failed: %s", e)
-
             # If an MCP call is running, mark current calls as stale (user is moving on)
             # and let the user know it's still in progress
             if self._mcp_call_in_progress > 0 and self._pending_approval is None:
@@ -494,7 +486,6 @@ class MCPVoiceAssistant:
         elif event.type == ServerEventType.RESPONSE_CREATED:
             logger.info("Assistant response created")
             self._active_response = True
-            self._response_api_done = False
 
         elif event.type == ServerEventType.RESPONSE_AUDIO_DELTA:
             ap.queue_audio(event.delta)
@@ -517,7 +508,6 @@ class MCPVoiceAssistant:
             logger.info("Response complete")
             await write_conversation_log("--- Response complete ---")
             self._active_response = False
-            self._response_api_done = True
 
             # If an approval prompt needs to be injected, do it now that no response is active
             if self._approval_prompt_needed and self._pending_approval is not None:
@@ -556,16 +546,14 @@ class MCPVoiceAssistant:
             msg = event.error.message
             # Reset response state — errors can terminate a response without RESPONSE_DONE
             self._active_response = False
-            self._response_api_done = True
-            if "Cancellation failed: no active response" not in msg:
-                if "interim response" in msg.lower():
-                    logger.warning("Interim response not supported with this model pipeline (non-fatal)")
-                elif "active response" in msg.lower():
-                    logger.debug("Response collision (expected during MCP flow): %s", msg)
-                else:
-                    logger.error("VoiceLive error: %s", msg)
-                    print(f"Error: {msg}")
-                    await write_conversation_log(f"ERROR: {msg}")
+            if "interim response" in msg.lower():
+                logger.warning("Interim response not supported with this model pipeline (non-fatal)")
+            elif "active response" in msg.lower():
+                logger.debug("Response collision (expected during MCP flow): %s", msg)
+            else:
+                logger.error("VoiceLive error: %s", msg)
+                print(f"Error: {msg}")
+                await write_conversation_log(f"ERROR: {msg}")
 
         # MCP-specific events
         elif event.type == ServerEventType.MCP_LIST_TOOLS_IN_PROGRESS:

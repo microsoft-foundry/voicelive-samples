@@ -376,8 +376,6 @@ class BasicModelVoiceAssistant {
     this._session = null;
     this._subscription = null;
     this._audio = new AudioProcessor(!options.noAudio, options.audioInputDevice);
-    this._activeResponse = false;
-    this._responseApiDone = false;
     this._greetingSent = false;
   }
 
@@ -434,26 +432,10 @@ class BasicModelVoiceAssistant {
       onInputAudioBufferSpeechStarted: async () => {
         console.log("🎤 Listening...");
         this._audio.skipPendingAudio();
-
-        if (this._activeResponse && !this._responseApiDone) {
-          try {
-            await session.sendEvent({ type: "response.cancel" });
-          } catch (err) {
-            const msg = err?.message ?? "";
-            if (!msg.toLowerCase().includes("no active response")) {
-              console.warn("[barge-in] Cancel failed:", msg);
-            }
-          }
-        }
       },
 
       onInputAudioBufferSpeechStopped: async () => {
         console.log("🤔 Processing...");
-      },
-
-      onResponseCreated: async () => {
-        this._activeResponse = true;
-        this._responseApiDone = false;
       },
 
       onResponseAudioDelta: async (event) => {
@@ -468,15 +450,10 @@ class BasicModelVoiceAssistant {
 
       onResponseDone: async () => {
         console.log("✅ Response complete");
-        this._activeResponse = false;
-        this._responseApiDone = true;
       },
 
       onServerError: async (event) => {
         const msg = event.error?.message ?? "";
-        if (msg.includes("Cancellation failed: no active response")) {
-          return;
-        }
         console.error(`❌ VoiceLive error: ${msg}`);
       },
 
