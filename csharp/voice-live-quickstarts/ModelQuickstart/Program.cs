@@ -275,7 +275,6 @@ namespace Azure.AI.VoiceLive.Samples
     /// <remarks>
     /// This sample now demonstrates some of the new convenience methods added to the VoiceLive SDK:
     /// - ClearStreamingAudioAsync() - Clears all input audio currently being streamed
-    /// - CancelResponseAsync() - Cancels the current response generation (existing method)
     /// - ConfigureSessionAsync() - Configures session options (existing method)
     ///
     /// Additional convenience methods available but not shown in this sample:
@@ -300,8 +299,6 @@ namespace Azure.AI.VoiceLive.Samples
         private bool _disposed;
     // Tracks whether an assistant response is currently active (created and not yet completed)
     private bool _responseActive;
-    // Tracks whether the assistant can still cancel the current response (between ResponseCreated and ResponseDone)
-    private bool _canCancelResponse;
 
         /// <summary>
         /// Initializes a new instance of the BasicVoiceAssistant class.
@@ -476,32 +473,13 @@ namespace Azure.AI.VoiceLive.Samples
                         await _audioProcessor.StopPlaybackAsync().ConfigureAwait(false);
                     }
 
-                    // Only attempt cancellation / clearing if a response is active and cancellable
-                    if (_responseActive && _canCancelResponse)
+                    // Clear streaming audio only while a response is active.
+                    if (_responseActive)
                     {
-                        // Cancel any ongoing response
-                        try
-                        {
-                            await _session!.CancelResponseAsync(cancellationToken).ConfigureAwait(false);
-                            _logger.LogInformation("🛑 Active response cancelled due to user barge-in");
-                        }
-                        catch (Exception ex)
-                        {
-                            if (ex.Message.Contains("no active response", StringComparison.OrdinalIgnoreCase))
-                            {
-                                _logger.LogDebug("Cancellation benign: response already completed");
-                            }
-                            else
-                            {
-                                _logger.LogWarning(ex, "Response cancellation failed during barge-in");
-                            }
-                        }
-
-                        // Clear any streaming audio still in transit
                         try
                         {
                             await _session!.ClearStreamingAudioAsync(cancellationToken).ConfigureAwait(false);
-                            _logger.LogInformation("✨ Cleared streaming audio after cancellation");
+                            _logger.LogInformation("✨ Cleared streaming audio during barge-in");
                         }
                         catch (Exception ex)
                         {
@@ -510,7 +488,7 @@ namespace Azure.AI.VoiceLive.Samples
                     }
                     else
                     {
-                        _logger.LogDebug("No active/cancellable response during barge-in; skipping cancellation");
+                        _logger.LogDebug("No active response during barge-in; skipping streaming audio clear");
                     }
                     break;
 
@@ -528,7 +506,6 @@ namespace Azure.AI.VoiceLive.Samples
                 case SessionUpdateResponseCreated responseCreated:
                     _logger.LogInformation("🤖 Assistant response created");
                     _responseActive = true;
-                    _canCancelResponse = true;
                     break;
 
                 case SessionUpdateResponseAudioDelta audioDelta:
@@ -550,14 +527,12 @@ namespace Azure.AI.VoiceLive.Samples
                 case SessionUpdateResponseDone responseDone:
                     _logger.LogInformation("✅ Response complete");
                     _responseActive = false;
-                    _canCancelResponse = false;
                     break;
 
                 case SessionUpdateError errorEvent:
                     _logger.LogError("❌ VoiceLive error: {ErrorMessage}", errorEvent.Error?.Message);
                     Console.WriteLine($"Error: {errorEvent.Error?.Message}");
                     _responseActive = false;
-                    _canCancelResponse = false;
                     break;
 
                 default:

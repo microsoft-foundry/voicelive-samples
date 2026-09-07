@@ -461,12 +461,6 @@ public class VoiceLiveHandler {
     private void handleSpeechStarted() {
         send("status", "state", "listening");
         sendMessage.accept(Map.of("type", "stop_playback"));
-        // Cancel any active response (barge-in)
-        try {
-            session.cancelResponse().block();
-        } catch (Exception e) {
-            // Ignore — no active response
-        }
     }
 
     private void handleAudioDelta(SessionUpdate event) {

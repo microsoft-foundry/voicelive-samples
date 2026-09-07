@@ -417,14 +417,6 @@ public final class MCPQuickstart {
                 System.out.println("🎤 Listening...");
                 audioProcessor.skipPendingAudio();
 
-                // Cancel any active response — prevents duplicate result playback
-                // when the user interrupts during MCP result speech (matches C#/Python/JS)
-                if (state.responseActive) {
-                    session.send(BinaryData.fromString("{\"type\":\"response.cancel\"}"))
-                        .subscribeOn(Schedulers.boundedElastic())
-                        .subscribe(v -> {}, err -> {});
-                }
-
                 // Clear deferred response flags if no MCP calls are in progress.
                 // Without this, a stale needsResponseCreate from a collision during
                 // the approval flow causes the model to re-speak results after the
@@ -518,9 +510,7 @@ public final class MCPQuickstart {
                 state.responseActive = false;
                 if (event instanceof SessionUpdateError) {
                     String msg = ((SessionUpdateError) event).getError().getMessage();
-                    if (msg.contains("no active response")) {
-                        // suppress
-                    } else if (msg.toLowerCase().contains("interim response")) {
+                    if (msg.toLowerCase().contains("interim response")) {
                         // non-fatal
                     } else if (msg.toLowerCase().contains("active response")) {
                         // expected during MCP flow

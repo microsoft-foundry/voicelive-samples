@@ -148,13 +148,6 @@ export class VoiceLiveClient {
             // Barge-in UX: stop any currently playing assistant audio immediately.
             if (this.enableBargeIn) {
               this.player.stop();
-
-              // Best-effort: ask server to cancel any in-progress response so it stops streaming TTS.
-              try {
-                await this.session?.sendEvent({ type: "response.cancel" } as any);
-              } catch {
-                // ignore if not supported
-              }
             }
 
             this.callbacks.onServerEvent?.({ type: "input_audio_buffer.speech_started" } as any);

@@ -37,8 +37,6 @@ public class CustomerServiceBot : IDisposable
     private bool _responseActive;
     // Tracks whether we've already sent the initial proactive greeting to start the conversation
     private bool _conversationStarted;
-    // Tracks whether the assistant can still cancel the current response (between ResponseCreated and ResponseDone)
-    private bool _canCancelResponse;
 
     /// <summary>
     /// Initializes a new instance of the CustomerServiceBot class.
@@ -433,33 +431,13 @@ public class CustomerServiceBot : IDisposable
                     await _audioProcessor.StopPlaybackAsync().ConfigureAwait(false);
                 }
 
-                // Only attempt cancellation / clearing if a response is actually active
-                if (_responseActive && _canCancelResponse)
+                // Clear streaming audio only while a response is active.
+                if (_responseActive)
                 {
-                    // Cancel any ongoing response (only if server may still be generating)
-                    try
-                    {
-                        await _session!.CancelResponseAsync(cancellationToken).ConfigureAwait(false);
-                        _logger.LogInformation("🛑 Active response cancelled due to customer barge-in");
-                    }
-                    catch (Exception ex)
-                    {
-                        // Treat known benign message as debug-level (server already finished response)
-                        if (ex.Message.Contains("no active response", StringComparison.OrdinalIgnoreCase))
-                        {
-                            _logger.LogDebug("Cancellation benign: response already completed");
-                        }
-                        else
-                        {
-                            _logger.LogWarning(ex, "Response cancellation failed during barge-in");
-                        }
-                    }
-
-                    // Clear any streaming audio still in transit only if response still marked active
                     try
                     {
                         await _session!.ClearStreamingAudioAsync(cancellationToken).ConfigureAwait(false);
-                        _logger.LogInformation("✨ Cleared streaming audio after cancellation");
+                        _logger.LogInformation("✨ Cleared streaming audio during barge-in");
                     }
                     catch (Exception ex)
                     {
@@ -468,7 +446,7 @@ public class CustomerServiceBot : IDisposable
                 }
                 else
                 {
-                    _logger.LogDebug("No active response to cancel during barge-in; skipping cancellation and clear operations");
+                    _logger.LogDebug("No active response during barge-in; skipping streaming audio clear");
                 }
                 break;
 
@@ -486,7 +464,6 @@ public class CustomerServiceBot : IDisposable
             case SessionUpdateResponseCreated responseCreated:
                 _logger.LogInformation("🤖 Assistant response created");
                 _responseActive = true;
-                _canCancelResponse = true; // Response can be cancelled until completion
                 break;
 
             case SessionUpdateResponseOutputItemAdded outputItemAdded:
@@ -520,7 +497,6 @@ public class CustomerServiceBot : IDisposable
             case SessionUpdateResponseDone responseDone:
                 _logger.LogInformation("✅ Response complete");
                 _responseActive = false; // Response fully complete
-                _canCancelResponse = false; // No longer cancellable
                 break;
             case SessionUpdateResponseFunctionCallArgumentsDone functionCallArgumentsDone:
                 _logger.LogInformation("🔧 Function call arguments done for call ID: {CallId}", functionCallArgumentsDone.CallId);
@@ -545,7 +521,6 @@ public class CustomerServiceBot : IDisposable
                 _logger.LogError("❌ VoiceLive error: {ErrorMessage}", errorEvent.Error?.Message);
                 Console.WriteLine($"Error: {errorEvent.Error?.Message}");
                 _responseActive = false;
-                _canCancelResponse = false;
                 break;
 
             default:

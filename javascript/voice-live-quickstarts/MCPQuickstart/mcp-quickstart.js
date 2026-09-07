@@ -474,14 +474,6 @@ class MCPVoiceAssistant {
           // Mark barge-in so onResponseDone skips deferred actions
           this._bargeInActive = true;
           try {
-            await session.sendEvent({ type: "response.cancel" });
-          } catch (err) {
-            const msg = err?.message ?? "";
-            if (!msg.toLowerCase().includes("no active response")) {
-              console.warn("[barge-in] Cancel failed:", msg);
-            }
-          }
-          try {
             await session.sendEvent({ type: "input_audio_buffer.clear" });
           } catch { /* best-effort */ }
         }
@@ -544,7 +536,6 @@ class MCPVoiceAssistant {
         // Reset response state — errors can terminate a response without onResponseDone
         this._activeResponse = false;
         this._responseApiDone = true;
-        if (msg.includes("Cancellation failed: no active response")) return;
         if (msg.toLowerCase().includes("interim response")) {
           console.log("[session] Interim response not supported (non-fatal)");
           return;
