@@ -83,7 +83,7 @@ To prevent this, the quickstart uses a `_bargeInActive` flag:
 2. **Checked** at the top of `onResponseDone` — if set, all deferred processing is skipped and the flag is cleared
 3. All deferred flags (`_needsResponseCreate`, `_mcpResultsPending`) are also cleared unconditionally on barge-in
 
-This ensures the cancelled response exits cleanly without side effects, and the user's new turn drives the next response.
+This ensures the interrupted response exits cleanly without side effects, and the user's new turn drives the next response.
 
 ### Response Collision Handling
 
