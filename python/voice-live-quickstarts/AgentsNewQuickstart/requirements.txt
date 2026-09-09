@@ -4,3 +4,4 @@ azure-ai-voicelive>=1.2.0b4
 pyaudio
 python-dotenv
 azure-identity
+aiohttp
