@@ -11,7 +11,7 @@ To use these Agent Skills, open the project where your coding agent is configure
 Run this command from the project :
 
 ```bash
-npx skills add https://github.com/microsoft-foundry/voicelive-samples/tree/main/.agent/skills/azure-avatar-integrate
+npx skills add https://github.com/microsoft-foundry/voicelive-samples --skill azure-avatar-integrate
 ```
 
 ### Manual Installation
@@ -23,7 +23,7 @@ Use the project-level skills directory:
 ```sh
 git clone https://github.com/microsoft-foundry/voicelive-samples.git
 
-cp -R voicelive-samples/.agent/skills/azure-avatar-integrate .agents/skills/
+cp -R voicelive-samples/skills/azure-avatar-integrate .agents/skills/
 ```
 
 ## Skill Structure

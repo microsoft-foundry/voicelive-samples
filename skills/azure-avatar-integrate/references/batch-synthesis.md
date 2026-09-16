@@ -51,6 +51,14 @@ Check the [batch guide](https://learn.microsoft.com/azure/ai-services/speech-ser
 
 The HTTP examples use the Entra header. For API-key mode, replace it with `Ocp-Apim-Subscription-Key: <speech-key>` on submit, poll, list, and delete requests. Keep bearer tokens and keys on the backend; obtain current Entra tokens through the credential provider rather than hardcoding them.
 
+### Web application access control
+
+Apply only when exposing Web endpoints, including localhost; trusted local scripts or CLIs need no application authentication layer.
+
+- Reuse application authentication; retain CSRF protection when cookies are used. Authorize every submit, status, download, delete, and list request on the backend.
+- Persist each job's owner from authentication context; restrict job operations, lists, and stored videos/summaries to that owner. A `SynthesisId` alone is not authorization.
+- Enforce server-side submission rate limits and concurrent-job caps per caller before Azure calls.
+
 ### 1. Validate content and persist job identity
 
 1. Set `inputKind`: `PlainText` uses a voice in `synthesisConfig`; `SSML` includes the voice in its content.
@@ -187,6 +195,7 @@ Run local checks first; follow the [main validation rules](../SKILL.md#validate)
 
 - [ ] **Configuration:** resource, region, API, content, avatar, video, polling, and storage match the plan; no secrets in logs.
 - [ ] **Authentication:** the selected method works for service requests; Entra uses the custom endpoint and required role, while API-key mode keeps the key on the backend without authentication fallback.
+- [ ] **Web security (when exposed):** with mocked Azure/storage, reject unauthenticated access, cross-user access, over-limit submissions, and invalid CSRF requests (cookie auth) before service calls or artifact reads. Lists and downloads expose only the caller's jobs.
 - [ ] **Validation and identity:** enforce input/size/format/duration limits; persist the ID before submission and query it after an uncertain result.
 - [ ] **Polling:** reach a terminal state or record local timeout without claiming cancellation; handle transient errors and `Retry-After` separately.
 - [ ] **Durable results:** one real job produces validated video and summary in owned storage; no SAS exposure or forwarded Speech headers.
