@@ -151,7 +151,7 @@ if (result.reason !== SpeechSDK.ResultReason.SynthesizingAudioCompleted) {
 
 ### 5. Recover between utterances and release owned resources
 
-During live tests, reconnects and replacements must stay within approved limits.
+During live tests, reconnects and replacements follow the main skill's validation rules.
 
 | Condition | Action |
 |---|---|
@@ -181,9 +181,6 @@ Configure only what the request needs, using verified SDK properties:
 
 Run local checks first; follow the [validation and completion rules](../SKILL.md#validate) for Azure validation and reporting.
 
-- [ ] **Configuration:** resource, region, SDK, voice, avatar, and TURN match the plan; no secrets in logs.
 - [ ] **Authorization:** separate Speech/ICE credentials work; renewal or replacement precedes expiry.
-- [ ] **Playback:** confirm visible video, audible speech, and correct lip-sync separately, not just connected tracks.
-- [ ] **Session reuse:** two sequential responses succeed in one session; overlapping calls are serialized.
 - [ ] **Recovery:** reconnect between turns without replaying speech or racing cleanup.
 - [ ] **Cancellation and cleanup:** cancellation reaches application error state; repeated teardown leaves no owned resources active.

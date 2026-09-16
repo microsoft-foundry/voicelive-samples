@@ -77,7 +77,7 @@ Use a supported SDK and the approved endpoint and model/agent target. Register e
 | Backend + API key (model mode only) | Pass the key from the approved backend secret provider or environment through the SDK's key credential, such as `AzureKeyCredential`. |
 | Direct client SDK | Supply `TokenCredential` from a supported client identity provider, not a pasted token or one issued to the backend. `DefaultAzureCredential` is not browser sign-in. |
 
-For token authentication, use the identity provider's actual expiry and SDK-supported refresh. Reacquire current credentials for new connections; any session replacement must stay within approved test limits. A fixed `Date.now() + 3600000` does not establish token validity.
+For token authentication, use the identity provider's actual expiry and SDK-supported refresh. Reacquire current credentials for new connections. A fixed `Date.now() + 3600000` does not establish token validity.
 
 This flow uses API keys or Entra credentials, not the Speech STS token exchange used by the Real-time Speech SDK guide.
 
@@ -181,9 +181,9 @@ Send `session.update`, or its SDK equivalent:
 
 | Event meaning | Application action |
 |---|---|
-| User speech starts/stops | Update listening state and trigger interruption when needed. |
-| User transcription | Update the transcript; do not append the same final text twice. |
-| Response text, transcript, or completion | Update only the active response; completion does not end the session. |
+| User speech starts/stops | Update listening state, reserve the user turn's position, and trigger interruption when needed. |
+| User transcription | Update its reserved turn by stable ID; do not append by arrival time or duplicate final text. |
+| Response text, transcript, or completion | Reserve the response after its user turn and update it by stable ID; completion does not end the session. |
 
 Dispatch events once. Keep the healthy session open so the next microphone turn works after completion or interruption.
 
@@ -191,7 +191,7 @@ Dispatch events once. Keep the healthy session open so the next microphone turn 
 
 Preserve the first redacted Voice Live `error`; later WebSocket 1006 or `no close frame received or sent` messages are secondary evidence.
 
-- **Transient WebSocket/SDP/ICE failure:** clean up the failed connection, then reconnect within the main skill's retry budget and approved test limits (`RECONNECTING`).
+- **Transient WebSocket/SDP/ICE failure:** clean up the failed connection, then reconnect under the main skill's retry rule (`RECONNECTING`).
 - **Non-retryable error, exhausted budget, or user stop:** end the session (`TERMINAL`); do not reconnect.
 
 For every teardown, including partial startup:
@@ -239,14 +239,12 @@ After completing the Verify checklist below, report the **locale and voice**, **
 
 Run local checks first; follow the [validation and completion rules](../SKILL.md#validate) for Azure validation and reporting.
 
-- [ ] **Configuration:** endpoint, model or project/agent names, auth, mode, transport, and renderer match the plan; Agent mode uses a Microsoft Foundry resource and Entra ID; no secrets in logs.
 - [ ] **Authentication:** the selected credential flow works; token expiry/refresh use provider metadata. Service keys and backend identity tokens stay on the backend; direct clients use their own Entra sign-in.
 - [ ] **Local ICE regression (application-managed):** test all step 4 ICE branches, latest full payload, single-send behavior, and stop/late-event cleanup.
-- [ ] **Real media readiness:** confirm session update, offer sent, answer applied, connected ICE, both tracks, and actual playback. Use equivalent SDK evidence; playback readiness precedes microphone capture.
-- [ ] **Real conversation:** microphone input produces a response; confirm audible speech and lip-sync separately, not just socket or text output. Verify user transcripts when required by the plan.
+- [ ] **Real conversation:** microphone input produces a response in the primary language; also test requested additional languages and language switching. Confirm audible speech and lip-sync separately, not just socket or text output. Verify user transcripts when required by the plan.
+- [ ] **Turn ordering (when user transcripts are displayed):** delayed final user transcripts remain before their corresponding assistant replies across sequential and interrupted turns.
 - [ ] **Interruption and reuse:** stale speech stops; the next turn works in the same session, with WebRTC-only response audio.
 - [ ] **Relay security:** reject unauthorized, cross-session, oversized, unknown, and post-stop messages; release the session on client disconnect.
 - [ ] **Recovery and cleanup:** preserve the first error and respect retry/stop limits; repeated cleanup leaves no test-owned resources active.
-- [ ] **Language and voice:** test the primary language; add target-language checks only for requested languages, switching, multilingual use, or diagnosed mismatches—not a general language matrix.
 
 Skip relay checks for direct clients. Use [troubleshooting](./troubleshooting.md) for failures and separate diagnostic-capability regression.

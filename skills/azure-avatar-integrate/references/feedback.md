@@ -4,7 +4,7 @@ Track integration issues and offer optional feedback after acceptance.
 
 ## 1. Record
 
-On path confirmation:
+On path confirmation for an implementation request, not a recommendation-only request:
 
 1. Create or load `.azure-avatar-integrate/<integration-id>.json` in the target project.
 2. Tell the developer its location. Exclude it from Git locally or use an approved private local location; never upload it.

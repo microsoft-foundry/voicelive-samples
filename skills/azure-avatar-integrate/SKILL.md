@@ -10,10 +10,11 @@ Integrate Azure Avatar through Batch Synthesis, the Real-time Speech SDK, or Voi
 ## Global Rules
 
 - Never request or read secrets; keep service keys and backend identity tokens on the backend.
-- Obtain separate approval for scope/architecture changes, documentation edits, billable calls, Azure/IAM changes, deployment, or destructive actions.
-- Resume from the same record and valid confirmations; records do not authorize edits or live calls.
+- Obtain separate approval for scope/architecture changes, documentation edits, Azure/IAM changes, deployment, or destructive actions.
+- Before the first end-to-end Azure call for an integration, state once that usage may incur charges; do not request approval or repeat the notice for later calls, tests, reconnects, app restarts, or developer use with the confirmed configuration.
+- Resume from the same record and valid confirmations; records do not authorize edits.
 - Follow the developer's request; ask only for required confirmations/approvals or when blocked.
-- On failure, preserve the first service error, retry transient stages at most once within approval, and release owned runtime resources.
+- On failure, preserve the first service error, retry transient stages at most once, and release owned runtime resources.
 
 ## Inspect
 
@@ -49,12 +50,12 @@ Read the selected guide for architecture and supported API/SDK credential flows.
 
 ## Confirm
 
-After the developer confirms the path:
+For recommendation-only requests, stop after path confirmation without creating records, configuring access, or editing application files.
+
+For implementation requests with a confirmed path:
 
 1. Create or load the [issue record](./references/feedback.md) and keep it updated.
-2. If implementation was requested, complete **Configure** next. Application edits require both path and access confirmation.
-
-For recommendation-only requests, stop here without access setup or application edits.
+2. Complete **Configure** next. Application edits require both path and access confirmation.
 
 ## Configure
 
@@ -74,12 +75,12 @@ Prefill known values; collect missing settings once using separate structured qu
 
 ### Credential Setup
 
-During configuration, check fields and static compatibility using local settings and public documentation. Defer project tests to implementation and Azure calls to approved validation.
+During configuration, check fields and static compatibility using local settings and public documentation. Defer project tests to implementation and Azure calls until end-to-end validation.
 
 - For API keys, name the backend file and `AZURE_VOICE_LIVE_API_KEY` (Voice Live) or `AZURE_SPEECH_API_KEY` (other paths). Ask for local saving and wait for explicit confirmation before application edits.
 - For Entra ID in Batch or Voice Live, state the local identity source; ask for it only if blocked. Follow the selected guide's endpoint and role requirements.
 
-Local confirmation establishes setup, not credential validity; only an approved Azure call can validate it.
+Local confirmation establishes setup, not credential validity; only an Azure call can validate it.
 
 ## Implement
 
@@ -97,30 +98,20 @@ Complete the selected guide's remaining local **Verify** checks, reusing still-a
 
 ### 2. Azure Verification
 
-Path or access confirmation does not authorize Azure validation. Before service calls, obtain separate approval for:
-
-- Charges.
-- Total test duration.
-- Total job submissions or connection attempts, including retries and reconnects.
-
-Run the service-dependent **Verify** checks within those limits.
+Keep automated validation focused, retry transient stages at most once, and stop immediately when requested. Obtain approval only when validation requires a scope/configuration change, Azure/IAM change, deployment, or destructive action.
 
 For Voice Live and Real-time Speech SDK, use an external browser, not VS Code's integrated browser. If automation is unavailable, explain and guide manual validation.
 
-Enforce test limits separately:
-
-- At the submission/connection cap, block further submissions or connections, not polling, downloads, or turns in existing sessions. Continue admitted work only within the approved duration and scope.
-- At the deadline or on pause/stop, block new test calls, stop polling, end live sessions, and release owned runtime resources. Retain recovery records; stopping a poller does not cancel a remote Batch job.
-- Obtain fresh approval to increase limits or resume testing after expiry, pause, or stop.
+On pause or stop, block new test calls, stop polling, end live sessions, and release owned runtime resources. Retain recovery records; stopping a poller does not cancel a remote Batch job.
 
 ### 3. Report Results
 
 | Status | Required evidence |
 |---|---|
 | Implementation complete; Azure validation pending | Local checks pass; Azure validation remains pending. |
-| Integration complete | All required **Verify** checks pass. Voice Live and Real-time Speech SDK also require developer confirmation. |
+| Integration complete | All required checks in **Prepare**, **Implement**, and **Verify** have passing evidence; reuse still-valid results. Voice Live and Real-time Speech SDK also require real-media evidence and developer confirmation. |
 
-Distinguish direct observations, user-confirmed results, and unverified checks. List pending or failed checks explicitly.
+Concisely report the outcome, usage, key file/configuration/dependency changes, validation and remaining work, credential and billable-call handling, and runtime status; omit secret values and include counts only when requested.
 
 ## Complete and Invite Feedback
 

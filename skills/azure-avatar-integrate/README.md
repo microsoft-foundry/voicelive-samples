@@ -79,7 +79,7 @@ Open your coding agent and use the following prompt to activate the skill:
 - **Node.js/npm:** For installation via `npx skills add`.
 - **Python 3.10+:** For the feedback helper.
 
-> Keep long-lived secrets on a trusted backend, never in chat or client code. Local checks do not prove end-to-end success. Azure usage may be billable; obtain approval before live calls.
+> Keep long-lived secrets on a trusted backend, never in chat or client code. Local checks do not prove end-to-end success, and Azure usage may be billable.
 
 ## Related Resources
 
