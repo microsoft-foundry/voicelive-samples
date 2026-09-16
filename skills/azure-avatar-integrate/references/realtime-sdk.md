@@ -4,6 +4,10 @@ Render application-supplied text or SSML as live avatar speech and video, keepin
 
 ## Prepare
 
+Follow the [main skill's access gate](../SKILL.md#configure) before application edits. This guide covers a browser `AvatarSynthesizer` with backend API-key authentication and a short-lived STS token for the browser, not Entra authentication.
+
+If Entra is required, preserve that choice and obtain approval for a separately verified architecture; do not silently switch to API keys or forward backend Entra tokens to the browser.
+
 ### 1. Confirm the resource
 
 Reuse the Microsoft Foundry or Standard S0 Speech resource, region, and backend credential source. If absent, guide resource creation before requesting its region. Check [Avatar region support](https://learn.microsoft.com/azure/ai-services/speech-service/regions?tabs=ttsavatar); audio-only Speech support is not enough.
@@ -30,12 +34,14 @@ Check installed SDK types against the [real-time guide](https://learn.microsoft.
 
 ### 1. Issue Speech authorization and ICE credentials on the backend
 
-Provide two authenticated, rate-limited backend endpoints:
+Keep `AZURE_SPEECH_API_KEY` on the backend, unlike the client-only sample. Use it for both requests below and expose two authenticated, rate-limited backend endpoints:
 
 | Credential | Backend request | Return to the authorized client |
 |---|---|---|
 | Speech token | `POST /sts/v1.0/issueToken`, empty body, `Ocp-Apim-Subscription-Key` header | Token, matching region/endpoint, and expiry metadata. |
 | ICE credentials | Relay request below | Short-lived server URL, username, and credential; use TURN entries only. |
+
+STS tokens are exchanged from an API key; they are not Entra tokens.
 
 Use the regional Speech token issuer for regional SDK routing; match custom routing to its issuer. Follow the [token contract](https://learn.microsoft.com/azure/ai-services/speech-service/rest-text-to-speech#how-to-get-an-sts-access-token).
 
@@ -145,6 +151,8 @@ if (result.reason !== SpeechSDK.ResultReason.SynthesizingAudioCompleted) {
 
 ### 5. Recover between utterances and release owned resources
 
+During live tests, reconnects and replacements must stay within approved limits.
+
 | Condition | Action |
 |---|---|
 | 5-minute idle or 30-minute session limit | Replace the session between utterances. |
@@ -171,11 +179,11 @@ Configure only what the request needs, using verified SDK properties:
 
 ## Verify
 
+Run local checks first; follow the [validation and completion rules](../SKILL.md#validate) for Azure validation and reporting.
+
 - [ ] **Configuration:** resource, region, SDK, voice, avatar, and TURN match the plan; no secrets in logs.
 - [ ] **Authorization:** separate Speech/ICE credentials work; renewal or replacement precedes expiry.
-- [ ] **Playback:** a response produces audible speech and visible video, not just connected tracks.
+- [ ] **Playback:** confirm visible video, audible speech, and correct lip-sync separately, not just connected tracks.
 - [ ] **Session reuse:** two sequential responses succeed in one session; overlapping calls are serialized.
 - [ ] **Recovery:** reconnect between turns without replaying speech or racing cleanup.
 - [ ] **Cancellation and cleanup:** cancellation reaches application error state; repeated teardown leaves no owned resources active.
-
-Report verified and remaining checks using the main skill's **Report Results** section.

@@ -1,12 +1,14 @@
 # Azure Avatar Integration
 
-An AI coding agent skill to help you create Azure Avatar videos, add a talking avatar to your app, and troubleshoot integration issues.
+Agent skills for creating Azure Avatar videos, adding talking avatars to applications, and troubleshooting integration issues
 
 ## Installation
 
+To use these Agent Skills, open the project where your coding agent is configured and install them either from the command line or manually.
+
 ### Skills CLI
 
-Open the project where you use your coding agent, then run this command from the project:
+Run this command from the project :
 
 ```bash
 npx skills add https://github.com/microsoft-foundry/voicelive-samples/tree/main/.agent/skills/azure-avatar-integrate
@@ -14,7 +16,9 @@ npx skills add https://github.com/microsoft-foundry/voicelive-samples/tree/main/
 
 ### Manual Installation
 
-These are project-level installation directories: `.agents/skills` for GitHub Copilot and Codex, or `.claude/skills` for Claude Code.
+Use the project-level skills directory:
+- **.agents/skills**  for GitHub Copilot and Codex
+- **.claude/skills** for Claude Code
 
 ```sh
 git clone https://github.com/microsoft-foundry/voicelive-samples.git
@@ -37,16 +41,16 @@ azure-avatar-integrate/
 | Path | Description |
 |---|---|
 | [SKILL.md](SKILL.md) | Skill entry point, integration path selection, and workflow. |
-| [references/batch-synthesis.md](references/batch-synthesis.md) | Generate a finished video from text or SSML. |
-| [references/realtime-sdk.md](references/realtime-sdk.md) | Render final text from an existing conversation pipeline. |
-| [references/voice-live.md](references/voice-live.md) | Build a service-managed avatar conversation. |
+| [references/batch-synthesis.md](references/batch-synthesis.md) | Generate a downloadable avatar video from text or SSML. |
+| [references/realtime-sdk.md](references/realtime-sdk.md) | Stream avatar speech and video in real time from text or SSML supplied by your app |
+| [references/voice-live.md](references/voice-live.md) | Build an AI avatar that listens and responds in real time with synchronized speech and video. |
 | [references/troubleshooting.md](references/troubleshooting.md) | Diagnose connection, playback, or session failures. |
 | [references/feedback.md](references/feedback.md) | Share optional feedback with consent and review. |
 | [scripts/feedback_form_url.py](scripts/feedback_form_url.py) | Generate a prefilled feedback form URL after consent. |
 
 ## Example Prompts
 
-Ask your agent to use `azure-avatar-integrate`, then try:
+Open your coding agent and use the following prompt to activate the skill:
 
 > I want to add an Azure avatar to my app. Where do I start?
 
@@ -66,10 +70,14 @@ Ask your agent to use `azure-avatar-integrate`, then try:
 
 ## Requirements
 
-- **Coding agent:** Supports Agent Skills and file and terminal tools.
-- **Node.js/npm:** Only for CLI installation.
-- **Azure access:** A supported Azure resource and credentials for live calls.
-- **Python 3.10+:** Only for the optional feedback helper.
+- **Coding agent:** Supports Agent Skills, file editing, and terminal commands.
+- **Azure access:** Resources and authentication supported by your chosen integration.
+- **Real-time browser use:** WebRTC support; microphone access for voice conversations.
+
+## Optional Tools
+
+- **Node.js/npm:** For installation via `npx skills add`.
+- **Python 3.10+:** For the feedback helper.
 
 > Keep long-lived secrets on a trusted backend, never in chat or client code. Local checks do not prove end-to-end success. Azure usage may be billable; obtain approval before live calls.
 

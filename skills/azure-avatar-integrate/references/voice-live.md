@@ -4,11 +4,13 @@ Build a conversational avatar that listens through the microphone and responds w
 
 ## Prepare
 
-Resolve access prerequisites before live startup, not before safe local implementation. Use placeholders for missing values, reuse known answers, and ask only when the next useful action is blocked. Perform external setup only within approved scope.
+Complete access setup under the main skill's **Configure** section before application edits. Reuse confirmed settings and perform external setup only within approved scope.
 
 ### 1. Get the resource
 
-Reuse the supplied `endpoint` and `region`. If either is missing, scaffold named configuration placeholders and explain where the developer can find the value. Ask only when a concrete compatibility check or live connection cannot proceed without it. Do not create or discover Azure resources yourself.
+Reuse the supplied `endpoint` and `region`; collect missing values in the access interaction and explain where to find them. Do not create or discover Azure resources yourself.
+
+Agent mode follows the [Foundry Agent Service (new) quickstart](https://learn.microsoft.com/azure/ai-services/speech-service/voice-live-agents-quickstart): require a Microsoft Foundry resource with an existing project and agent. A Speech-only resource does not support Agent integration.
 
 ### 2. Select the target
 
@@ -17,31 +19,37 @@ Collect only the chosen mode's fields:
 | Mode | Connection fields |
 |---|---|
 | Model | `model` |
-| Agent | `project_id`, `agent_id` |
+| Agent (Foundry new) | `project_name`, `agent_name`; optional `agent_version` |
 
-Use actual project and agent IDs, not display names. Check both [model availability](https://learn.microsoft.com/azure/ai-services/speech-service/voice-live#supported-models-and-regions) and [Avatar region support](https://learn.microsoft.com/azure/ai-services/speech-service/regions?tabs=ttsavatar): unsupported blocks connection; unknown stays unverified.
+Use the project name from the final segment of the project endpoint and the agent name used at creation. JavaScript SDK agent configuration uses `projectName`, `agentName`, and optional `agentVersion`; do not substitute Classic project/agent IDs or infer wire parameters from SDK property names.
 
-Use the developer's model when specified. Otherwise recommend a currently supported starting model while keeping it configurable; do not block scaffolding on the choice or silently use the recommendation for a live call. After a model change, recheck only affected compatibility, cost, and configuration; do not restart onboarding or reconfirm unchanged choices.
+Collect `conversation_id` only when continuing a conversation, and `foundry_resource_override` / `authentication_identity_client_id` only for cross-resource access. Use the selected SDK's equivalent field names.
+
+Check both [model availability](https://learn.microsoft.com/azure/ai-services/speech-service/voice-live#supported-models-and-regions) and [Avatar region support](https://learn.microsoft.com/azure/ai-services/speech-service/regions?tabs=ttsavatar): unsupported blocks connection; unknown stays unverified.
+
+For model mode, use the developer's choice or confirm a currently supported starting model during access setup. Keep it configurable and use only the confirmed model for live calls. After a model change, recheck only affected compatibility, cost, and configuration; do not restart onboarding or reconfirm unchanged choices.
 
 ### 3. Configure authentication
 
-Keep approved authentication; otherwise prefer Entra ID.
+Agent mode requires Entra ID; API-key-only authentication is not supported. For model mode, keep approved authentication; otherwise prefer Entra ID.
 
 | Method | Setup |
 |---|---|
 | Entra ID | Identify the application identity; guide role assignments without modifying IAM. Do not load an API key. |
-| API key | For approved key authentication, use the application's backend secret provider or environment. |
+| API key (model mode only) | Use the application's approved backend secret provider or environment. |
 
-Follow the [main skill's configuration rules](../SKILL.md#3-implement). Configure only the selected mode's target and authentication. For API-key authentication, name the backend environment variable and continue with a placeholder; do not ask whether the key is ready. A blank model is missing live configuration, not permission to silently use a sample default.
+Follow the [main skill's access setup](../SKILL.md#configure). Configure only the selected mode's target and authentication. For API keys, specify the backend file and `AZURE_VOICE_LIVE_API_KEY`, then wait for explicit confirmation that the key was saved locally before application edits.
 
 > **Secret boundary:** the developer supplies secrets locally. Never read secret values, print the environment, or expose secrets in chat, command arguments, frontend code, or logs. Local validity does not prove service access.
 
 ### 4. Choose the connection
 
-- **Client SDK:** only when the runtime and Entra sign-in are supported and direct access fits the approved plan.
-- **Backend relay:** otherwise connect from the backend, reusing the application transport.
+The [official JavaScript Avatar sample](https://github.com/microsoft-foundry/voicelive-samples/tree/main/javascript/voice-live-avatar) connects directly from the browser using an API key or raw Entra token, including optional backend-token delivery through `/config`. It does not implement client-owned Entra sign-in; use its SDK/media examples without copying that credential handling.
 
-> **Before connecting:** obtain approval for region, target, or auth changes. Missing access need not block local coding; implement missing components before live connection.
+- **Backend relay:** the default for this guide. Reuse the application transport and keep API keys and backend identity tokens on the backend.
+- **Client SDK:** only with a supported runtime, client-owned Entra sign-in and refresh, and an approved direct-access plan. A `TokenCredential` wrapper alone is not a sign-in flow.
+
+> **Before connecting:** obtain approval for region, target, or auth changes. Complete application components before live connection.
 
 ## Implement
 
@@ -66,21 +74,26 @@ Use a supported SDK and the approved endpoint and model/agent target. Register e
 | Connection | Authentication |
 |---|---|
 | Backend + Entra | Use `DefaultAzureCredential`; prefer managed identity when hosted in Azure. Have the developer configure the required roles (`Cognitive Services User`, `Foundry User`) for the selected target. |
-| Backend + API key | Use the application's approved backend secret provider or environment. Keep the key outside source control and the client. |
-| Direct client SDK | Use its supported Entra sign-in flow. `DefaultAzureCredential` is not browser sign-in. |
+| Backend + API key (model mode only) | Pass the key from the approved backend secret provider or environment through the SDK's key credential, such as `AzureKeyCredential`. |
+| Direct client SDK | Supply `TokenCredential` from a supported client identity provider, not a pasted token or one issued to the backend. `DefaultAzureCredential` is not browser sign-in. |
 
-**Raw WebSocket fallback — backend only, when no suitable SDK exists:**
+For token authentication, use the identity provider's actual expiry and SDK-supported refresh. Reacquire current credentials for new connections; any session replacement must stay within approved test limits. A fixed `Date.now() + 3600000` does not establish token validity.
+
+This flow uses API keys or Entra credentials, not the Speech STS token exchange used by the Real-time Speech SDK guide.
+
+For Agent mode, use the selected SDK's agent configuration and pin a compatible SDK/API version from the Agent quickstart. Do not reuse a Classic `project_id` / `agent_id` URL for the new Agent flow.
+
+**Raw WebSocket fallback (model mode, backend only, when no suitable SDK exists):**
 
 ```text
 wss://<resource>.services.ai.azure.com/voice-live/realtime?api-version=2026-04-10&model=<model>
-wss://<resource>.services.ai.azure.com/voice-live/realtime?api-version=2026-04-10&project_id=<project-id>&agent_id=<agent-id>
 ```
 
 Confirm the API version and endpoint against [current Voice Live guidance](https://learn.microsoft.com/azure/ai-services/speech-service/voice-live-how-to). Older resources may use `<resource>.cognitiveservices.azure.com`. URL-encode target values; with an SDK, use its target types instead of constructing query parameters.
 
-For the [raw WebSocket handshake](https://learn.microsoft.com/azure/ai-services/speech-service/voice-live-how-to#credentials), send either an `api-key` header or `Authorization: Bearer <token>`. For Entra, request scope `https://ai.azure.com/.default` (legacy: `https://cognitiveservices.azure.com/.default`); retain the approved scope rather than retrying another automatically.
+For the model-mode [raw WebSocket handshake](https://learn.microsoft.com/azure/ai-services/speech-service/voice-live-how-to#credentials), send either an `api-key` header or `Authorization: Bearer <token>`. For Entra, request scope `https://ai.azure.com/.default` (legacy: `https://cognitiveservices.azure.com/.default`); retain the approved scope rather than retrying another automatically.
 
-> **Before live startup:** require supported resource/region, correct target IDs, ready credentials, and implemented application components. Never put keys/tokens in URLs or send a backend identity's bearer token to the client.
+> **Before live startup:** require supported resource/region, correct model or project/agent names, ready credentials, and implemented application components. Never put keys/tokens in URLs or send a backend identity's bearer token to the client.
 
 ### 3. Configure the session
 
@@ -178,7 +191,7 @@ Dispatch events once. Keep the healthy session open so the next microphone turn 
 
 Preserve the first redacted Voice Live `error`; later WebSocket 1006 or `no close frame received or sent` messages are secondary evidence.
 
-- **Transient WebSocket/SDP/ICE failure:** clean up the failed connection, then reconnect within the main skill's retry budget (`RECONNECTING`).
+- **Transient WebSocket/SDP/ICE failure:** clean up the failed connection, then reconnect within the main skill's retry budget and approved test limits (`RECONNECTING`).
 - **Non-retryable error, exhausted budget, or user stop:** end the session (`TERMINAL`); do not reconnect.
 
 For every teardown, including partial startup:
@@ -224,15 +237,16 @@ After completing the Verify checklist below, report the **locale and voice**, **
 
 ## Verify
 
-Run local checks first; obtain separate approval for real checks under the [live completion gate](../SKILL.md#live-completion-gate).
+Run local checks first; follow the [validation and completion rules](../SKILL.md#validate) for Azure validation and reporting.
 
-- [ ] **Configuration:** endpoint, target IDs/model, auth, mode, transport, and renderer match the plan; no secrets in logs.
+- [ ] **Configuration:** endpoint, model or project/agent names, auth, mode, transport, and renderer match the plan; Agent mode uses a Microsoft Foundry resource and Entra ID; no secrets in logs.
+- [ ] **Authentication:** the selected credential flow works; token expiry/refresh use provider metadata. Service keys and backend identity tokens stay on the backend; direct clients use their own Entra sign-in.
 - [ ] **Local ICE regression (application-managed):** test all step 4 ICE branches, latest full payload, single-send behavior, and stop/late-event cleanup.
 - [ ] **Real media readiness:** confirm session update, offer sent, answer applied, connected ICE, both tracks, and actual playback. Use equivalent SDK evidence; playback readiness precedes microphone capture.
-- [ ] **Real conversation:** microphone input produces response state and synchronized avatar speech/video—not just a socket or text-only test. Verify user transcripts when required by the plan.
+- [ ] **Real conversation:** microphone input produces a response; confirm audible speech and lip-sync separately, not just socket or text output. Verify user transcripts when required by the plan.
 - [ ] **Interruption and reuse:** stale speech stops; the next turn works in the same session, with WebRTC-only response audio.
 - [ ] **Relay security:** reject unauthorized, cross-session, oversized, unknown, and post-stop messages; release the session on client disconnect.
-- [ ] **Recovery and cleanup:** observed failures preserve the first error and follow retry/stop limits; repeated cleanup leaves no active resources. Verify test-owned servers and browser media are stopped under the main skill's cleanup rule.
+- [ ] **Recovery and cleanup:** preserve the first error and respect retry/stop limits; repeated cleanup leaves no test-owned resources active.
 - [ ] **Language and voice:** test the primary language; add target-language checks only for requested languages, switching, multilingual use, or diagnosed mismatches—not a general language matrix.
 
-Skip relay checks for direct clients. Record sound, lip sync, interruption, next-turn reuse, and browser cleanup separately as directly observed, explicitly user-confirmed, or unverified; mocked checks and visible video alone do not prove them. Use [troubleshooting](./troubleshooting.md) for failures and separate diagnostic-capability regression. Report verified and remaining checks under the live completion gate above.
+Skip relay checks for direct clients. Use [troubleshooting](./troubleshooting.md) for failures and separate diagnostic-capability regression.
