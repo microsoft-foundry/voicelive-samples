@@ -12,6 +12,7 @@ Voice Live enables real-time voice interactions using Azure AI Speech Service. T
 - Integration examples with Azure AI Speech Service
 - Best practices for Voice Live implementation
 - Sample code for common use cases
+- Agent skills for guided development workflows
 
 ## Getting Started
 
@@ -25,7 +26,7 @@ Voice Live enables real-time voice interactions using Azure AI Speech Service. T
 
 1. Clone this repository:
    ```bash
-   git clone https://github.com/azure-ai-foundry/voicelive-samples.git
+   git clone https://github.com/microsoft-foundry/voicelive-samples.git
    cd voicelive-samples
    ```
 
@@ -100,6 +101,17 @@ Full-stack web application with a **shared React+Vite+TypeScript frontend** and 
 - 91 unit tests + E2E audio test
 
 Each language folder contains detailed setup instructions, configuration examples, and troubleshooting guides specific to that language and platform.
+
+## Agent Skills
+
+This repository includes Agent Skills that help coding agents implement and troubleshoot supported Azure AI Speech scenarios. Additional skills will be added here as they become available.
+
+### [Azure Avatar Integration](./skills/azure-avatar-integrate/README.md)
+Agent Skill for planning, building, validating, and troubleshooting Azure AI Speech Avatar integrations:
+- **Batch Synthesis**: Generate downloadable avatar videos from text or SSML
+- **Real-time Speech SDK**: Add a live talking avatar to an existing application or conversational pipeline
+- **Voice Live**: Build an interactive avatar that listens and responds with synchronized speech and video
+- **Troubleshooting**: Diagnose authentication, WebRTC, connection, playback, and session issues
 
 ## Documentation
 
