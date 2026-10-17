@@ -1,0 +1,6 @@
+azure-ai-voicelive[aiohttp]
+azure-identity
+python-dotenv
+fastapi
+uvicorn[standard]
+twilio
