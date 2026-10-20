@@ -12,7 +12,7 @@ Follow the [main skill](../SKILL.md) for approval, safe evidence handling, valid
 
 | Problem | Possible solution |
 |---|---|
-| 401 or 403 | Check the credential source, endpoint, region, tier, and permissions; do not switch authentication to bypass the failure. |
+| 401 or 403 | First confirm that the code reads the confirmed configuration names, then check the endpoint, region, tier, and permissions. Do not rename settings or switch authentication to bypass the failure. |
 | Session setup fails | Use the first service error to check resource support, target, or SDK/API compatibility. Verify Voice Live avatar region support separately from batch. |
 | Voice Live works on the server but not in the browser | Check browser SDK/auth compatibility against the approved [connection model](./voice-live.md#4-choose-the-connection); verify WebRTC media separately. |
 | Voice Live ICE timeout before `session.avatar.connect` | Check local SDP candidates without logging SDP. Candidates present: use [ICE fallback](./voice-live.md#4-connect-the-avatar-stream). None: check VPN, firewall, proxy, and STUN/TURN access. |

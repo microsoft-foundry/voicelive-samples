@@ -24,7 +24,7 @@ For standalone troubleshooting, read and follow [troubleshooting](./references/t
 |---|---|
 | Read dependency manifests | Declared frameworks and SDKs |
 | Read primary client/backend entry points | Existing integration, input type, conversation owner, reusable components |
-| Run one targeted search for avatar, speech, STT, LLM, TTS, and agent signals | Integration signals and non-secret Azure configuration |
+| Run one targeted search for avatar, speech, STT, LLM, TTS, and agent signals | Integration signals, non-secret Azure configuration, and existing configuration names |
 
 ## Choose
 
@@ -73,11 +73,30 @@ Prefill known values; collect missing settings once using separate structured qu
 | Authentication | Voice Live Agent | Entra ID; Microsoft Foundry resource required |
 | Authentication | Real-time Speech SDK guide | Backend API key; browser STS token |
 
+### Configuration Names
+
+Use exactly one name per setting for the whole integration:
+
+1. **Existing project names first:** if Inspect found a name already used for a setting, such as `AZURE_SPEECH_KEY` or `VOICE_LIVE_ENDPOINT`, reuse it. Do not add a second name for the same value.
+2. **New names follow the existing prefix:** if the project already names related settings with a prefix, such as `VOICE_LIVE_`, name new settings with that prefix, such as `VOICE_LIVE_MODEL`.
+3. **Otherwise use the defaults:**
+
+| Setting | Batch / Real-time Speech SDK | Voice Live |
+|---|---|---|
+| API key | `SPEECH_KEY` | `AZURE_VOICELIVE_API_KEY` |
+| Endpoint | `SPEECH_ENDPOINT` | `AZURE_VOICELIVE_ENDPOINT` |
+| Region | `SPEECH_REGION` | Not needed for connection |
+| Model | — | `AZURE_VOICELIVE_MODEL` |
+| Agent target | — | `AZURE_VOICELIVE_PROJECT_NAME`, `AZURE_VOICELIVE_AGENT_NAME`, optional `AZURE_VOICELIVE_AGENT_VERSION` |
+
+4. **Keep them:** use the same names in developer instructions, code, config templates, and validation. Do not rename a confirmed setting or ask the developer to save it again under another name unless the developer approves the change.
+5. **Map sample names:** when adapting samples or documentation that use other names, change the code to read the confirmed name.
+
 ### Credential Setup
 
 During configuration, check fields and static compatibility using local settings and public documentation. Defer project tests to implementation and Azure calls until end-to-end validation.
 
-- For API keys, name the backend file and `AZURE_VOICE_LIVE_API_KEY` (Voice Live) or `AZURE_SPEECH_API_KEY` (other paths). Ask for local saving and wait for explicit confirmation before application edits.
+- For API keys, name the backend file and the confirmed key name from **Configuration Names**. Ask for local saving and wait for explicit confirmation before application edits.
 - For Entra ID in Batch or Voice Live, state the local identity source; ask for it only if blocked. Follow the selected guide's endpoint and role requirements.
 
 Local confirmation establishes setup, not credential validity; only an Azure call can validate it.
@@ -87,12 +106,14 @@ Local confirmation establishes setup, not credential validity; only an Azure cal
 Use the confirmed recommendation without repeating plan approval.
 
 1. **Start:** After access confirmation, announce the affected components and first local check before editing.
-2. **Edit:** Follow the selected guide's **Implement** section and reuse existing components. Change only necessary code, config templates, tests, and the issue record.
+2. **Edit:** Follow the selected guide's **Implement** section and reuse existing components. Change only necessary code, config templates, tests, and the issue record. Read settings only through the confirmed **Configuration Names**, including in code adapted from samples, and load them from the backend file or environment named during Configure.
 3. **Check:** Run focused local checks after a coherent batch of related edits, not after every edit. Resolve failures before starting the next batch.
 
 ## Validate
 
 ### 1. Local Checks
+
+Before the first Azure call, search the changed code and config templates for setting reads. Each must use a confirmed name, and the application must load the backend file or environment named during Configure. Check presence without reading or printing values.
 
 Complete the selected guide's remaining local **Verify** checks, reusing still-applicable passing results. Local success is not end-to-end acceptance.
 

@@ -19,7 +19,7 @@ Keep the selected authentication; otherwise prefer Entra ID as in the [official 
 | Method | Backend authentication | Prerequisite |
 |---|---|---|
 | Entra ID | Reuse `DefaultAzureCredential`; request scope `https://cognitiveservices.azure.com/.default` and send `Authorization: Bearer <entra-token>`. | Custom-subdomain endpoint and `Cognitive Services User` or `Cognitive Services Speech User` role. |
-| API key | Send `Ocp-Apim-Subscription-Key` from backend `AZURE_SPEECH_API_KEY`. | Explicit local-save confirmation under the main skill's **Configure** section. |
+| API key | Send `Ocp-Apim-Subscription-Key` from the confirmed backend key name (default `SPEECH_KEY`). | Explicit local-save confirmation under the main skill's **Configure** section. |
 
 Use the confirmed endpoint for all service requests. Entra requires `https://<custom-domain>.cognitiveservices.azure.com`; API-key mode also permits `https://<region>.api.cognitive.microsoft.com`. Never switch authentication automatically on failure.
 

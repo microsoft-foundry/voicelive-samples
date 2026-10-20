@@ -38,7 +38,7 @@ Agent mode requires Entra ID; API-key-only authentication is not supported. For 
 | Entra ID | Identify the application identity; guide role assignments without modifying IAM. Do not load an API key. |
 | API key (model mode only) | Use the application's approved backend secret provider or environment. |
 
-Follow the [main skill's access setup](../SKILL.md#configure). Configure only the selected mode's target and authentication. For API keys, specify the backend file and `AZURE_VOICE_LIVE_API_KEY`, then wait for explicit confirmation that the key was saved locally before application edits.
+Follow the [main skill's access setup](../SKILL.md#configure). Configure only the selected mode's target and authentication. For API keys, specify the backend file and the confirmed key name (default `AZURE_VOICELIVE_API_KEY`), then wait for explicit confirmation that the key was saved locally before application edits.
 
 > **Secret boundary:** the developer supplies secrets locally. Never read secret values, print the environment, or expose secrets in chat, command arguments, frontend code, or logs. Local validity does not prove service access.
 

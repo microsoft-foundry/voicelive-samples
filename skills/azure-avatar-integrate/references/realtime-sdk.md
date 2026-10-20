@@ -34,7 +34,7 @@ Check installed SDK types against the [real-time guide](https://learn.microsoft.
 
 ### 1. Issue Speech authorization and ICE credentials on the backend
 
-Keep `AZURE_SPEECH_API_KEY` on the backend, unlike the client-only sample. Use it for both requests below and expose two authenticated, rate-limited backend endpoints:
+Keep the confirmed Speech key (default `SPEECH_KEY`; see [Configuration Names](../SKILL.md#configuration-names)) on the backend, unlike the client-only sample. Use it for both requests below and expose two authenticated, rate-limited backend endpoints:
 
 | Credential | Backend request | Return to the authorized client |
 |---|---|---|
