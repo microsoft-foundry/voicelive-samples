@@ -16,6 +16,7 @@ Follow the [main skill](../SKILL.md) for approval, safe evidence handling, valid
 | Session setup fails | Use the first service error to check resource support, target, or SDK/API compatibility. Verify Voice Live avatar region support separately from batch. |
 | Voice Live works on the server but not in the browser | Check browser SDK/auth compatibility against the approved [connection model](./voice-live.md#4-choose-the-connection); verify WebRTC media separately. |
 | Voice Live ICE timeout before `session.avatar.connect` | Check local SDP candidates without logging SDP. Candidates present: use [ICE fallback](./voice-live.md#4-connect-the-avatar-stream). None: check VPN, firewall, proxy, and STUN/TURN access. |
+| Real-time avatar startup fails with `Unsupported voice` (WebSocket 1007) | The voice isn't supported for real-time avatar in the resource region; HD (`:DragonHD...`) voices are the common cause. Switch to a supported standard neural voice. |
 | Video resolution returns `invalid_argument` | Match the model's native aspect ratio (`1920 x 1080` for default `lisa` / `casual-sitting`). A later WebSocket 1006 may be secondary, not the root cause. |
 
 See [Voice Live](./voice-live.md#prepare) or [Real-time Speech SDK](./realtime-sdk.md#prepare) for path-specific setup.

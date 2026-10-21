@@ -69,7 +69,7 @@ These are application responsibilities, not prescribed event names. Map them to 
 
 ### 2. Connect to Voice Live
 
-Use a supported SDK and the approved endpoint and model/agent target. Register event handlers once before connecting.
+Use a supported SDK and the approved endpoint and model/agent target. Register event handlers once before connecting. The Python SDK's async connection requires the `aiohttp` extra: declare `azure-ai-voicelive[aiohttp]`, not `azure-ai-voicelive` alone.
 
 | Connection | Authentication |
 |---|---|

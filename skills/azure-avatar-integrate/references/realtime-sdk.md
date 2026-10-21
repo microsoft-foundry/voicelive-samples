@@ -24,7 +24,7 @@ Keep existing STT, LLM, tools, and turn management. Implement missing components
 
 ### 3. Confirm rendering settings
 
-- **Speech:** input language and compatible neural voice.
+- **Speech:** input language and compatible neural voice. Default to a standard neural voice such as `en-US-AvaMultilingualNeural`. Use an HD voice (`:DragonHD...`) only on request and after confirming real-time avatar support in the resource region; unsupported voices fail at startup with `Unsupported voice`, and HD avatar output is billed at a higher rate.
 - **Avatar:** character, style/type, and required video format.
 - **Network:** client access to the chosen TURN service.
 
@@ -67,7 +67,7 @@ Create `SpeechConfig` from the backend token, then set voice, avatar, and video 
 // speechToken and speechRegion come from the authenticated backend endpoint.
 const speechConfig = SpeechSDK.SpeechConfig.fromAuthorizationToken(speechToken, speechRegion);
 speechConfig.speechSynthesisLanguage = "en-US";
-speechConfig.speechSynthesisVoiceName = "en-US-Ava:DragonHDLatestNeural";
+speechConfig.speechSynthesisVoiceName = "en-US-AvaMultilingualNeural";
 
 const videoFormat = new SpeechSDK.AvatarVideoFormat();
 videoFormat.width = 1920;
