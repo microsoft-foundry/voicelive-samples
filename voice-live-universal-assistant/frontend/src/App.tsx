@@ -52,12 +52,14 @@ const App: React.FC = () => {
   useEffect(() => {
     if (!configLoaded) return;
     const overrides: Record<string, any> = {};
-    if (agent) overrides.agentName = agent;
-    if (project) overrides.project = project;
+    // ?agent= and ?project= only apply when the server allows client agent overrides
+    const allowAgentParams = settings.allowClientAgentOverride;
+    if (allowAgentParams && agent) overrides.agentName = agent;
+    if (allowAgentParams && project) overrides.project = project;
     if (greetingDisabled) overrides.proactiveGreeting = false;
-    if (agent && project) overrides.mode = 'agent';
+    if (allowAgentParams && agent && project) overrides.mode = 'agent';
     if (Object.keys(overrides).length > 0) updateSettings(overrides);
-  }, [configLoaded, agent, project, greetingDisabled, updateSettings]);
+  }, [configLoaded, agent, project, greetingDisabled, updateSettings, settings.allowClientAgentOverride]);
 
   // Apply URL theme override
   useEffect(() => {

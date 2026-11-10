@@ -36,6 +36,14 @@ For deployed environments, the `azd` infrastructure provisions a **system-assign
 
 **Fallback (API key):** Set `AZURE_VOICELIVE_API_KEY` in `.env` only if token-based auth is unavailable for your resource.
 
+### Server-controlled agent routing
+
+The backend connects to Voice Live with **its own** credential (managed identity, `az login`, or API key), so the server — not the browser — decides which Foundry resource, project, agent, agent version, and managed identity a session uses. These come from `AZURE_VOICELIVE_AGENT_NAME`, `AZURE_VOICELIVE_PROJECT`, `AZURE_VOICELIVE_AGENT_VERSION`, `AZURE_VOICELIVE_FOUNDRY_RESOURCE_OVERRIDE`, and `AZURE_VOICELIVE_AUTH_IDENTITY_CLIENT_ID`. Values sent by a WebSocket client for these fields are ignored, and the settings panel shows them read-only.
+
+For trusted local development only, set `VOICELIVE_ALLOW_CLIENT_AGENT_OVERRIDE=true` to let the settings panel (and the `?agent=` / `?project=` URL parameters) choose them. Never enable this on a deployed or shared instance: anyone who can reach the app could then use the server's identity against any agent or resource that identity can access.
+
+> **Restrict access to deployed apps.** The sample has no user sign-in, and anyone who can reach `/ws` can start sessions billed to and authorized by the server's identity. Before exposing a deployment beyond your own testing, enable [Azure Container Apps authentication](https://learn.microsoft.com/azure/container-apps/authentication) (or place the app behind your own authenticated gateway or internal-only ingress), and grant the app's identity access only to the Voice Live resource and agent it serves.
+
 ## Quick Start (Python)
 
 ### 1. Build the frontend
@@ -95,6 +103,9 @@ VOICELIVE_TRANSCRIBE_MODEL=gpt-4o-transcribe
 # Agent mode settings (when VOICELIVE_MODE=agent)
 AZURE_VOICELIVE_AGENT_NAME=your-agent-name
 AZURE_VOICELIVE_PROJECT=your-project-name
+
+# Keep false unless this is trusted local development (see "Server-controlled agent routing")
+VOICELIVE_ALLOW_CLIENT_AGENT_OVERRIDE=false
 ```
 
 ### 4. Run the server
@@ -210,16 +221,19 @@ The frontend accepts URL query parameters to customize behavior without changing
 |-----------|--------|---------|-------------|
 | `?mode=voice\|text` | `voice`, `text` | `voice` | Lock the input mode. `voice` = microphone-based interaction with real-time audio. `text` = chat-style text input. When set, the mode toggle in the menu is hidden. |
 | `?lock=true` | `true` | `false` | Kiosk/embed mode — hides the settings gear and mode toggle entirely. The app uses only server-provided configuration. |
-| `?agent=NAME` | any string | — | Pre-fills the agent name in settings and automatically sets connection mode to `agent` (when used together with `?project=`). |
-| `?project=NAME` | any string | — | Pre-fills the project name in settings and automatically sets connection mode to `agent` (when used together with `?agent=`). |
+| `?agent=NAME` | any string | — | Pre-fills the agent name in settings and automatically sets connection mode to `agent` (when used together with `?project=`). Applies only when the server sets `VOICELIVE_ALLOW_CLIENT_AGENT_OVERRIDE=true`; otherwise the server-configured agent is used. |
+| `?project=NAME` | any string | — | Pre-fills the project name in settings and automatically sets connection mode to `agent` (when used together with `?agent=`). Applies only when the server sets `VOICELIVE_ALLOW_CLIENT_AGENT_OVERRIDE=true`. |
 | `?theme=light\|dark` | `light`, `dark` | system | Override the UI theme. Without this, the app follows the system preference. |
 | `?greeting=false` | `false` | `true` | Disable the proactive greeting that the agent sends when a session starts. |
 
 **Examples:**
 
 ```
-# Voice mode with agent pre-configured (typical embed scenario)
-https://your-app.azurecontainerapps.io/?agent=my-agent&project=my-project&lock=true
+# Kiosk/embed mode using the server-configured agent (typical embed scenario)
+https://your-app.azurecontainerapps.io/?lock=true
+
+# Local development with VOICELIVE_ALLOW_CLIENT_AGENT_OVERRIDE=true: pick an agent via URL
+http://localhost:8000/?agent=my-agent&project=my-project
 
 # Text mode for chat-style interaction
 https://your-app.azurecontainerapps.io/?mode=text

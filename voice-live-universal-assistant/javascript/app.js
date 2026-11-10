@@ -35,6 +35,52 @@ function getCredential() {
 }
 
 // ---------------------------------------------------------------------------
+// Agent routing
+// ---------------------------------------------------------------------------
+// Session fields that choose which Foundry resource, project, agent, or managed
+// identity the server's own credential is used against. These come from server
+// configuration only. A WebSocket client can override them only when the
+// deployment explicitly opts in with VOICELIVE_ALLOW_CLIENT_AGENT_OVERRIDE=true
+// (intended for trusted local development, never for a publicly reachable app).
+const AGENT_ROUTING_FIELDS = {
+  agent_name: "AZURE_VOICELIVE_AGENT_NAME",
+  project: "AZURE_VOICELIVE_PROJECT",
+  agent_version: "AZURE_VOICELIVE_AGENT_VERSION",
+  foundry_resource_override: "AZURE_VOICELIVE_FOUNDRY_RESOURCE_OVERRIDE",
+  auth_identity_client_id: "AZURE_VOICELIVE_AUTH_IDENTITY_CLIENT_ID",
+};
+
+function allowClientAgentOverride() {
+  return (
+    (process.env.VOICELIVE_ALLOW_CLIENT_AGENT_OVERRIDE || "false")
+      .trim()
+      .toLowerCase() === "true"
+  );
+}
+
+function resolveAgentRouting(clientId, frontendConfig) {
+  const allowOverride = allowClientAgentOverride();
+  const resolved = {};
+  const ignored = [];
+  for (const [field, envName] of Object.entries(AGENT_ROUTING_FIELDS)) {
+    const clientValue = frontendConfig[field];
+    if (allowOverride && clientValue) {
+      resolved[field] = clientValue;
+      continue;
+    }
+    if (clientValue) ignored.push(field);
+    resolved[field] = process.env[envName] || "";
+  }
+  if (ignored.length > 0) {
+    console.warn(
+      `[WS] Ignoring client-supplied ${ignored.join(", ")} for ${clientId}; ` +
+        "set VOICELIVE_ALLOW_CLIENT_AGENT_OVERRIDE=true to allow (trusted local use only)"
+    );
+  }
+  return resolved;
+}
+
+// ---------------------------------------------------------------------------
 // App setup
 // ---------------------------------------------------------------------------
 const app = express();
@@ -75,6 +121,7 @@ app.get("/config", (_req, res) => {
     authMethod: process.env.AZURE_VOICELIVE_API_KEY
       ? "api_key"
       : "default_credential",
+    allowClientAgentOverride: allowClientAgentOverride(),
   });
 });
 
@@ -229,6 +276,7 @@ async function startSession(clientId, frontendConfig, ws) {
 
     const credential = getCredential();
     const send = sendToClient(ws, clientId);
+    const agentRouting = resolveAgentRouting(clientId, frontendConfig);
 
     // Build typed session config — frontend values override .env defaults
     const config = {
@@ -262,23 +310,12 @@ async function startSession(clientId, frontendConfig, ws) {
         "azure_semantic",
       noiseReduction: frontendConfig.noise_reduction ?? true,
       echoCancellation: frontendConfig.echo_cancellation ?? true,
-      agentName:
-        frontendConfig.agent_name || process.env.AZURE_VOICELIVE_AGENT_NAME || "",
-      projectName:
-        frontendConfig.project || process.env.AZURE_VOICELIVE_PROJECT || "",
-      agentVersion:
-        frontendConfig.agent_version ||
-        process.env.AZURE_VOICELIVE_AGENT_VERSION ||
-        "",
+      agentName: agentRouting.agent_name,
+      projectName: agentRouting.project,
+      agentVersion: agentRouting.agent_version,
       conversationId: frontendConfig.conversation_id || "",
-      foundryResourceOverride:
-        frontendConfig.foundry_resource_override ||
-        process.env.AZURE_VOICELIVE_FOUNDRY_RESOURCE_OVERRIDE ||
-        "",
-      authIdentityClientId:
-        frontendConfig.auth_identity_client_id ||
-        process.env.AZURE_VOICELIVE_AUTH_IDENTITY_CLIENT_ID ||
-        "",
+      foundryResourceOverride: agentRouting.foundry_resource_override,
+      authIdentityClientId: agentRouting.auth_identity_client_id,
       proactiveGreeting: frontendConfig.proactive_greeting ?? true,
       greetingType: frontendConfig.greeting_type || "llm",
       greetingText: frontendConfig.greeting_text || "",

@@ -1,6 +1,9 @@
 package com.azure.voicelive.sample;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
@@ -24,6 +27,23 @@ public class VoiceLiveWebSocketHandler extends TextWebSocketHandler {
 
     private static final Logger logger = LoggerFactory.getLogger(VoiceLiveWebSocketHandler.class);
     private static final ObjectMapper mapper = new ObjectMapper();
+
+    /**
+     * Session fields that choose which Foundry resource, project, agent, or managed
+     * identity the server's own credential is used against, mapped to their
+     * environment variables. These come from server configuration only. A WebSocket
+     * client can override them only when the deployment explicitly opts in with
+     * VOICELIVE_ALLOW_CLIENT_AGENT_OVERRIDE=true (intended for trusted local
+     * development, never for a publicly reachable app).
+     */
+    private static final Map<String, String> AGENT_ROUTING_FIELDS = new LinkedHashMap<>();
+    static {
+        AGENT_ROUTING_FIELDS.put("agent_name", "AZURE_VOICELIVE_AGENT_NAME");
+        AGENT_ROUTING_FIELDS.put("project", "AZURE_VOICELIVE_PROJECT");
+        AGENT_ROUTING_FIELDS.put("agent_version", "AZURE_VOICELIVE_AGENT_VERSION");
+        AGENT_ROUTING_FIELDS.put("foundry_resource_override", "AZURE_VOICELIVE_FOUNDRY_RESOURCE_OVERRIDE");
+        AGENT_ROUTING_FIELDS.put("auth_identity_client_id", "AZURE_VOICELIVE_AUTH_IDENTITY_CLIENT_ID");
+    }
 
     private final ConcurrentHashMap<String, VoiceLiveHandler> handlers = new ConcurrentHashMap<>();
     private final Object credential;
@@ -114,7 +134,7 @@ public class VoiceLiveWebSocketHandler extends TextWebSocketHandler {
             }
 
             // Build SessionConfig from frontend values, with env var defaults
-            SessionConfig config = buildSessionConfig(msg);
+            SessionConfig config = buildSessionConfig(clientId, msg);
 
             // Thread-safe message sender
             java.util.function.Consumer<Map<String, Object>> sendFn = (m) -> {
@@ -189,8 +209,9 @@ public class VoiceLiveWebSocketHandler extends TextWebSocketHandler {
     // Session config builder
     // ------------------------------------------------------------------
 
-    private SessionConfig buildSessionConfig(Map<String, Object> msg) {
+    private SessionConfig buildSessionConfig(String clientId, Map<String, Object> msg) {
         SessionConfig config = new SessionConfig();
+        Map<String, String> agentRouting = resolveAgentRouting(clientId, msg);
 
         config.setMode(getStringOrEnv(msg, "mode", "VOICELIVE_MODE", "model"));
         config.setModel(getStringOrEnv(msg, "model", "VOICELIVE_MODEL", "gpt-realtime"));
@@ -204,14 +225,12 @@ public class VoiceLiveWebSocketHandler extends TextWebSocketHandler {
         config.setVadType(getStringOrEnv(msg, "vad_type", "VOICELIVE_VAD_TYPE", "azure_semantic"));
         config.setNoiseReduction(getBoolOrDefault(msg, "noise_reduction", true));
         config.setEchoCancellation(getBoolOrDefault(msg, "echo_cancellation", true));
-        config.setAgentName(getStringOrEnv(msg, "agent_name", "AZURE_VOICELIVE_AGENT_NAME", null));
-        config.setProjectName(getStringOrEnv(msg, "project", "AZURE_VOICELIVE_PROJECT", null));
-        config.setAgentVersion(getStringOrEnv(msg, "agent_version", "AZURE_VOICELIVE_AGENT_VERSION", null));
+        config.setAgentName(agentRouting.get("agent_name"));
+        config.setProjectName(agentRouting.get("project"));
+        config.setAgentVersion(agentRouting.get("agent_version"));
         config.setConversationId(getStringOrDefault(msg, "conversation_id", null));
-        config.setFoundryResourceOverride(getStringOrEnv(msg, "foundry_resource_override",
-                "AZURE_VOICELIVE_FOUNDRY_RESOURCE_OVERRIDE", null));
-        config.setAuthIdentityClientId(getStringOrEnv(msg, "auth_identity_client_id",
-                "AZURE_VOICELIVE_AUTH_IDENTITY_CLIENT_ID", null));
+        config.setFoundryResourceOverride(agentRouting.get("foundry_resource_override"));
+        config.setAuthIdentityClientId(agentRouting.get("auth_identity_client_id"));
         config.setByomProfile(envOrDefault("VOICELIVE_BYOM_PROFILE", null));
         config.setProactiveGreeting(getBoolOrDefault(msg, "proactive_greeting", true));
         config.setGreetingType(getStringOrDefault(msg, "greeting_type", "llm"));
@@ -225,6 +244,32 @@ public class VoiceLiveWebSocketHandler extends TextWebSocketHandler {
         config.setInterimStaticTexts(getStringOrDefault(msg, "interim_static_texts", ""));
 
         return config;
+    }
+
+    /** Returns true when clients may choose the agent, project, resource, or identity. */
+    public static boolean allowClientAgentOverride() {
+        return "true".equalsIgnoreCase(envOrDefault("VOICELIVE_ALLOW_CLIENT_AGENT_OVERRIDE", "false").trim());
+    }
+
+    /** Resolves agent routing fields, ignoring client values unless overrides are allowed. */
+    private Map<String, String> resolveAgentRouting(String clientId, Map<String, Object> msg) {
+        boolean allowOverride = allowClientAgentOverride();
+        Map<String, String> resolved = new LinkedHashMap<>();
+        List<String> ignored = new ArrayList<>();
+        for (Map.Entry<String, String> field : AGENT_ROUTING_FIELDS.entrySet()) {
+            String clientValue = getStringOrDefault(msg, field.getKey(), null);
+            if (allowOverride && clientValue != null) {
+                resolved.put(field.getKey(), clientValue);
+                continue;
+            }
+            if (clientValue != null) ignored.add(field.getKey());
+            resolved.put(field.getKey(), envOrDefault(field.getValue(), null));
+        }
+        if (!ignored.isEmpty()) {
+            logger.warn("Ignoring client-supplied {} for {}; set VOICELIVE_ALLOW_CLIENT_AGENT_OVERRIDE=true "
+                    + "to allow (trusted local use only)", String.join(", ", ignored), clientId);
+        }
+        return resolved;
     }
 
     // ------------------------------------------------------------------

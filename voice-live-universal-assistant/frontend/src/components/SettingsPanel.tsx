@@ -347,6 +347,7 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
                 value={settings.agentName}
                 onChange={(_e, data) => onUpdate({ agentName: data.value })}
                 placeholder="Enter agent name"
+                disabled={!settings.allowClientAgentOverride}
               />
             </div>
 
@@ -356,8 +357,15 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
                 value={settings.project}
                 onChange={(_e, data) => onUpdate({ project: data.value })}
                 placeholder="Enter project name"
+                disabled={!settings.allowClientAgentOverride}
               />
+              {!settings.allowClientAgentOverride && (
+                <span style={optionalBadgeStyle}>Agent and project are configured on the server.</span>
+              )}
             </div>
+
+            {settings.allowClientAgentOverride && (
+            <>
 
             <div style={fieldStyle}>
               <Label weight="semibold" style={{ color: 'var(--fg-2)' }}>
@@ -369,6 +377,8 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
                 placeholder="e.g. 1.0"
               />
             </div>
+            </>
+            )}
 
             <div style={fieldStyle}>
               <Label weight="semibold" style={{ color: 'var(--fg-2)' }}>
@@ -381,6 +391,8 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
               />
             </div>
 
+            {settings.allowClientAgentOverride && (
+            <>
             <div style={fieldStyle}>
               <Label weight="semibold" style={{ color: 'var(--fg-2)' }}>
                 Foundry Resource Override <span style={optionalBadgeStyle}>optional</span>
@@ -402,6 +414,8 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
                 placeholder="Managed identity client ID"
               />
             </div>
+            </>
+            )}
 
             <div style={fieldStyle}>
               <Label weight="semibold" style={{ color: 'var(--fg-2)' }}>

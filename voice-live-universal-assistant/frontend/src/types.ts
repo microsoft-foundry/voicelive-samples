@@ -61,4 +61,10 @@ export interface VoiceSettings {
   interimLatencyMs: number;
   interimInstructions: string;
   interimStaticTexts: string;
+  /**
+   * Server capability from /config (not user-editable). When false, the server
+   * ignores client-supplied agent, project, version, Foundry resource and
+   * identity values and always uses its own configuration.
+   */
+  allowClientAgentOverride: boolean;
 }
