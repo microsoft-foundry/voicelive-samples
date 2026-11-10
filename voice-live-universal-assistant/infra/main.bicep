@@ -62,6 +62,9 @@ param agentName string = 'voicelive-assistant'
 @description('Backend language for Dockerfile selection (e.g., python, csharp, java, javascript)')
 param backendLanguage string = 'python'
 
+@description('Allow unauthenticated /ws connections. Keep false: the postprovision hook enables Container Apps authentication (Microsoft Entra ID) so only signed-in users can start sessions.')
+param allowAnonymous bool = false
+
 // createAgent implies createFoundry
 var effectiveCreateFoundry = createFoundry || createAgent
 
@@ -151,6 +154,7 @@ module app 'main-app.bicep' = {
     voiceLiveVoiceType: voiceLiveVoiceType
     voiceLiveTranscribeModel: voiceLiveTranscribeModel
     voiceLiveProjectEndpoint: resolvedProjectEndpoint
+    allowAnonymous: allowAnonymous
   }
 }
 
@@ -175,3 +179,4 @@ output AGENT_NAME string = createAgent ? agentName : ''
 
 // Backend language selection
 output BACKEND_LANGUAGE string = backendLanguage
+output VOICELIVE_ALLOW_ANONYMOUS string = string(allowAnonymous)

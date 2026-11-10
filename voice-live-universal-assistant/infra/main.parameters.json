@@ -55,6 +55,9 @@
     },
     "backendLanguage": {
       "value": "${BACKEND_LANGUAGE=python}"
+    },
+    "allowAnonymous": {
+      "value": "${VOICELIVE_ALLOW_ANONYMOUS=false}"
     }
   }
 }

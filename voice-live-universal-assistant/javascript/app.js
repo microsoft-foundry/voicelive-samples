@@ -50,6 +50,29 @@ const AGENT_ROUTING_FIELDS = {
   auth_identity_client_id: "AZURE_VOICELIVE_AUTH_IDENTITY_CLIENT_ID",
 };
 
+// /ws requires a signed-in user by default. In Azure Container Apps, built-in
+// authentication (Easy Auth) sets this header after signing the user in; external
+// requests cannot set it. Set VOICELIVE_ALLOW_ANONYMOUS=true only for trusted local
+// development where no authentication layer is in front of the app.
+const PRINCIPAL_ID_HEADER = "x-ms-client-principal-id";
+const AUTH_REQUIRED_MESSAGE =
+  "Authentication required. Sign in to the app, or set VOICELIVE_ALLOW_ANONYMOUS=true " +
+  "for trusted local development.";
+// WebSocket close code for a policy violation (RFC 6455)
+const WS_POLICY_VIOLATION = 1008;
+
+function allowAnonymous() {
+  return (
+    (process.env.VOICELIVE_ALLOW_ANONYMOUS || "false").trim().toLowerCase() ===
+    "true"
+  );
+}
+
+function isAuthenticated(req) {
+  if (allowAnonymous()) return true;
+  return Boolean((req.headers[PRINCIPAL_ID_HEADER] || "").trim());
+}
+
 function allowClientAgentOverride() {
   return (
     (process.env.VOICELIVE_ALLOW_CLIENT_AGENT_OVERRIDE || "false")
@@ -122,6 +145,7 @@ app.get("/config", (_req, res) => {
       ? "api_key"
       : "default_credential",
     allowClientAgentOverride: allowClientAgentOverride(),
+    authRequired: !allowAnonymous(),
   });
 });
 
@@ -208,6 +232,12 @@ async function cleanupClient(clientId) {
 
 app.ws("/ws/:clientId", (ws, req) => {
   const clientId = req.params.clientId;
+  if (!isAuthenticated(req)) {
+    console.warn(`[WS] Rejected unauthenticated WebSocket for ${clientId}`);
+    ws.send(JSON.stringify({ type: "error", message: AUTH_REQUIRED_MESSAGE }));
+    ws.close(WS_POLICY_VIOLATION, "Authentication required");
+    return;
+  }
   console.log(`[WS] Client ${clientId} connected`);
 
   ws.on("message", async (data) => {

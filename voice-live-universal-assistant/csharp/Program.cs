@@ -83,6 +83,21 @@ string? EnvOrNull(string key)
 // configuration only. A WebSocket client can override them only when the
 // deployment explicitly opts in with VOICELIVE_ALLOW_CLIENT_AGENT_OVERRIDE=true
 // (intended for trusted local development, never for a publicly reachable app).
+// /ws requires a signed-in user by default. In Azure Container Apps, built-in
+// authentication (Easy Auth) sets this header after signing the user in; external
+// requests cannot set it. Set VOICELIVE_ALLOW_ANONYMOUS=true only for trusted local
+// development where no authentication layer is in front of the app.
+const string PrincipalIdHeader = "X-MS-CLIENT-PRINCIPAL-ID";
+const string AuthRequiredMessage =
+    "Authentication required. Sign in to the app, or set VOICELIVE_ALLOW_ANONYMOUS=true for trusted local development.";
+
+bool AllowAnonymous() =>
+    string.Equals(EnvOrDefault("VOICELIVE_ALLOW_ANONYMOUS", "false").Trim(), "true",
+        StringComparison.OrdinalIgnoreCase);
+
+bool IsAuthenticated(HttpContext context) =>
+    AllowAnonymous() || !string.IsNullOrWhiteSpace(context.Request.Headers[PrincipalIdHeader].ToString());
+
 bool AllowClientAgentOverride() =>
     string.Equals(EnvOrDefault("VOICELIVE_ALLOW_CLIENT_AGENT_OVERRIDE", "false").Trim(), "true",
         StringComparison.OrdinalIgnoreCase);
@@ -102,6 +117,15 @@ app.Use(async (context, next) =>
         var clientId = pathSegments?.LastOrDefault() ?? "unknown";
 
         using var ws = await context.WebSockets.AcceptWebSocketAsync();
+        if (!IsAuthenticated(context))
+        {
+            logger.LogWarning("Rejected unauthenticated WebSocket for {ClientId}", clientId);
+            var errorJson = JsonSerializer.Serialize(
+                new Dictionary<string, object> { ["type"] = "error", ["message"] = AuthRequiredMessage }, jsonOptions);
+            await ws.SendAsync(Encoding.UTF8.GetBytes(errorJson), WebSocketMessageType.Text, true, CancellationToken.None);
+            await ws.CloseAsync(WebSocketCloseStatus.PolicyViolation, "Authentication required", CancellationToken.None);
+            return;
+        }
         logger.LogInformation("Client {ClientId} connected", clientId);
 
         // Thread-safe WebSocket sender
@@ -191,6 +215,7 @@ app.MapGet("/config", () =>
         project = EnvOrDefault("AZURE_VOICELIVE_PROJECT", ""),
         authMethod = apiKey != null ? "api_key" : "default_credential",
         allowClientAgentOverride = AllowClientAgentOverride(),
+        authRequired = !AllowAnonymous(),
     };
 });
 

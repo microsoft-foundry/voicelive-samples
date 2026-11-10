@@ -123,6 +123,11 @@ def start_backend(name: str) -> tuple[subprocess.Popen, dict]:
                 env[k.strip()] = v.strip()
                 backend_env[k.strip()] = v.strip()
 
+    # Local-only harness: there is no sign-in layer on localhost, and the tests choose
+    # the agent per run, so opt in to anonymous /ws and client agent overrides here.
+    env["VOICELIVE_ALLOW_ANONYMOUS"] = "true"
+    env["VOICELIVE_ALLOW_CLIENT_AGENT_OVERRIDE"] = "true"
+
     print(f"  Starting {name} on port {PORT}...")
     proc = subprocess.Popen(
         cfg["cmd"],

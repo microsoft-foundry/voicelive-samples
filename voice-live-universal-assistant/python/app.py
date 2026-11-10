@@ -67,6 +67,31 @@ _AGENT_ROUTING_FIELDS: Dict[str, str] = {
 }
 
 
+# /ws requires a signed-in user by default. In Azure Container Apps, built-in
+# authentication (Easy Auth) sets this header after signing the user in; external
+# requests cannot set it. Set VOICELIVE_ALLOW_ANONYMOUS=true only for trusted local
+# development where no authentication layer is in front of the app.
+_PRINCIPAL_ID_HEADER = "x-ms-client-principal-id"
+_AUTH_REQUIRED_MESSAGE = (
+    "Authentication required. Sign in to the app, or set VOICELIVE_ALLOW_ANONYMOUS=true "
+    "for trusted local development."
+)
+# WebSocket close code for a policy violation (RFC 6455)
+_WS_POLICY_VIOLATION = 1008
+
+
+def _allow_anonymous() -> bool:
+    """Return True when /ws may be used without a signed-in user."""
+    return os.getenv("VOICELIVE_ALLOW_ANONYMOUS", "false").strip().lower() == "true"
+
+
+def _is_authenticated(websocket: WebSocket) -> bool:
+    """Return True when the request carries a platform-authenticated user or anonymous use is allowed."""
+    if _allow_anonymous():
+        return True
+    return bool(websocket.headers.get(_PRINCIPAL_ID_HEADER, "").strip())
+
+
 def _allow_client_agent_override() -> bool:
     """Return True when clients may choose the agent, project, resource, or identity."""
     return os.getenv("VOICELIVE_ALLOW_CLIENT_AGENT_OVERRIDE", "false").strip().lower() == "true"
@@ -158,6 +183,7 @@ async def get_config():
         "project": os.getenv("AZURE_VOICELIVE_PROJECT", ""),
         "authMethod": "api_key" if os.getenv("AZURE_VOICELIVE_API_KEY") else "default_credential",
         "allowClientAgentOverride": _allow_client_agent_override(),
+        "authRequired": not _allow_anonymous(),
     }
 
 
@@ -223,6 +249,11 @@ async def websocket_endpoint(websocket: WebSocket, client_id: str):
     # Sanitize user-controlled client_id to prevent log injection
     client_id = client_id.replace("\n", "").replace("\r", "").replace("\t", "")
     await websocket.accept()
+    if not _is_authenticated(websocket):
+        logger.warning(f"Rejected unauthenticated WebSocket for {client_id}")
+        await websocket.send_text(json.dumps({"type": "error", "message": _AUTH_REQUIRED_MESSAGE}))
+        await websocket.close(code=_WS_POLICY_VIOLATION)
+        return
     logger.info(f"Client {client_id} connected")
 
     try:

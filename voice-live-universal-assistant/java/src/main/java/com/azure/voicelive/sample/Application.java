@@ -151,6 +151,7 @@ public class Application implements WebMvcConfigurer {
         result.put("project", envOrDefault("AZURE_VOICELIVE_PROJECT", ""));
         result.put("authMethod", apiKey != null ? "api_key" : "default_credential");
         result.put("allowClientAgentOverride", VoiceLiveWebSocketHandler.allowClientAgentOverride());
+        result.put("authRequired", !VoiceLiveWebSocketHandler.allowAnonymous());
         return result;
     }
 

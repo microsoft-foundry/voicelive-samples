@@ -42,7 +42,15 @@ The backend connects to Voice Live with **its own** credential (managed identity
 
 For trusted local development only, set `VOICELIVE_ALLOW_CLIENT_AGENT_OVERRIDE=true` to let the settings panel (and the `?agent=` / `?project=` URL parameters) choose them. Never enable this on a deployed or shared instance: anyone who can reach the app could then use the server's identity against any agent or resource that identity can access.
 
-> **Restrict access to deployed apps.** The sample has no user sign-in, and anyone who can reach `/ws` can start sessions billed to and authorized by the server's identity. Before exposing a deployment beyond your own testing, enable [Azure Container Apps authentication](https://learn.microsoft.com/azure/container-apps/authentication) (or place the app behind your own authenticated gateway or internal-only ingress), and grant the app's identity access only to the Voice Live resource and agent it serves.
+### WebSocket authentication
+
+Every session runs with the server's identity, so `/ws` requires a signed-in user by default. The backends accept a WebSocket only when the request carries the `X-MS-CLIENT-PRINCIPAL-ID` header, which [Azure Container Apps authentication](https://learn.microsoft.com/azure/container-apps/authentication) sets after signing the user in (external requests cannot set it). Other connections get an `Authentication required` error and are closed with code `1008`.
+
+- **`azd` deployments** enable Container Apps authentication with Microsoft Entra ID automatically: the post-provision hook creates an app registration (`voicelive-<env>-auth`, single tenant), stores its client secret in the Container App, and redirects unauthenticated visitors to sign in. The deploying user needs permission to create app registrations. The client secret expires after one year; rotate it with `az ad app credential reset`. To limit access to specific users or groups, set **Assignment required** on the app's enterprise application in Microsoft Entra ID.
+- **Local development** has no sign-in layer, so set `VOICELIVE_ALLOW_ANONYMOUS=true` in `.env`. Never set it on a deployed or shared instance: anyone who can reach the app could then start sessions billed to and authorized by its identity.
+- **Other hosting:** put the app behind an authentication layer that sets `X-MS-CLIENT-PRINCIPAL-ID` and strips any client-supplied value, or keep it on an internal-only network.
+
+Grant the app's identity access only to the Voice Live resource and agent it serves.
 
 ## Quick Start (Python)
 
@@ -106,6 +114,9 @@ AZURE_VOICELIVE_PROJECT=your-project-name
 
 # Keep false unless this is trusted local development (see "Server-controlled agent routing")
 VOICELIVE_ALLOW_CLIENT_AGENT_OVERRIDE=false
+
+# Required for local runs: there is no sign-in layer locally (see "WebSocket authentication")
+VOICELIVE_ALLOW_ANONYMOUS=true
 ```
 
 ### 4. Run the server
@@ -415,6 +426,7 @@ This adds (fully automatic):
 | `FOUNDRY_PROJECT_NAME` | `voicelive-project` | Name for the Foundry project |
 | `AGENT_MODEL_DEPLOYMENT_NAME` | `gpt-4.1-mini` | Model deployment name for agent |
 | `AGENT_NAME` | `voicelive-assistant` | Name for the created agent |
+| `VOICELIVE_ALLOW_ANONYMOUS` | `false` | Skip Container Apps authentication and allow anonymous `/ws` connections. Not recommended — see [WebSocket authentication](#websocket-authentication) |
 
 ## Development
 
@@ -516,6 +528,8 @@ An E2E test suite is available in [`tests/e2e_all_backends.py`](tests/e2e_all_ba
 pip install websockets playwright
 python -m playwright install chromium
 ```
+
+Run the backends under test with `VOICELIVE_ALLOW_ANONYMOUS=true` (local only), since the WebSocket tests connect without signing in.
 
 WebSocket tests use WAV audio files when available, or fall back to a synthetic 440Hz sine wave. Set `E2E_AUDIO_DIR` to a folder containing `.wav` files for real speech testing. Backend URLs can be overridden via environment variables (`E2E_PYTHON_URL`, `E2E_CSHARP_URL`, `E2E_JAVASCRIPT_URL`, `E2E_JAVA_URL`).
 

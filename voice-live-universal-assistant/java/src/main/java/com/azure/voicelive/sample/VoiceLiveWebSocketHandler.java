@@ -61,8 +61,14 @@ public class VoiceLiveWebSocketHandler extends TextWebSocketHandler {
     }
 
     @Override
-    public void afterConnectionEstablished(WebSocketSession session) {
+    public void afterConnectionEstablished(WebSocketSession session) throws IOException {
         String clientId = extractClientId(session);
+        if (!isAuthenticated(session)) {
+            logger.warn("Rejected unauthenticated WebSocket for {}", clientId);
+            sendJson(session, Map.of("type", "error", "message", AUTH_REQUIRED_MESSAGE));
+            session.close(CloseStatus.POLICY_VIOLATION.withReason("Authentication required"));
+            return;
+        }
         // Allow large messages — audio chunks are base64-encoded and can be 100KB+
         session.setTextMessageSizeLimit(512 * 1024);
         session.setBinaryMessageSizeLimit(512 * 1024);
@@ -72,6 +78,9 @@ public class VoiceLiveWebSocketHandler extends TextWebSocketHandler {
     @Override
     protected void handleTextMessage(WebSocketSession session, TextMessage message) throws Exception {
         String clientId = extractClientId(session);
+        if (!isAuthenticated(session)) {
+            return;
+        }
         try {
             Map<String, Object> msg = mapper.readValue(message.getPayload(),
                     new TypeReference<Map<String, Object>>() {});
@@ -244,6 +253,27 @@ public class VoiceLiveWebSocketHandler extends TextWebSocketHandler {
         config.setInterimStaticTexts(getStringOrDefault(msg, "interim_static_texts", ""));
 
         return config;
+    }
+
+    /**
+     * /ws requires a signed-in user by default. In Azure Container Apps, built-in
+     * authentication (Easy Auth) sets this header after signing the user in; external
+     * requests cannot set it. Set VOICELIVE_ALLOW_ANONYMOUS=true only for trusted local
+     * development where no authentication layer is in front of the app.
+     */
+    private static final String PRINCIPAL_ID_HEADER = "X-MS-CLIENT-PRINCIPAL-ID";
+    private static final String AUTH_REQUIRED_MESSAGE = "Authentication required. Sign in to the app, "
+            + "or set VOICELIVE_ALLOW_ANONYMOUS=true for trusted local development.";
+
+    /** Returns true when /ws may be used without a signed-in user. */
+    public static boolean allowAnonymous() {
+        return "true".equalsIgnoreCase(envOrDefault("VOICELIVE_ALLOW_ANONYMOUS", "false").trim());
+    }
+
+    private static boolean isAuthenticated(WebSocketSession session) {
+        if (allowAnonymous()) return true;
+        String principalId = session.getHandshakeHeaders().getFirst(PRINCIPAL_ID_HEADER);
+        return principalId != null && !principalId.isBlank();
     }
 
     /** Returns true when clients may choose the agent, project, resource, or identity. */
