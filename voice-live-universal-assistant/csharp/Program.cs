@@ -78,6 +78,30 @@ string? EnvOrNull(string key)
     return !string.IsNullOrWhiteSpace(v) ? v : null;
 }
 
+// Session fields that choose which Foundry resource, project, agent, or managed
+// identity the server's own credential is used against. These come from server
+// configuration only. A WebSocket client can override them only when the
+// deployment explicitly opts in with VOICELIVE_ALLOW_CLIENT_AGENT_OVERRIDE=true
+// (intended for trusted local development, never for a publicly reachable app).
+// /ws requires a signed-in user by default. In Azure Container Apps, built-in
+// authentication (Easy Auth) sets this header after signing the user in; external
+// requests cannot set it. Set VOICELIVE_ALLOW_ANONYMOUS=true only for trusted local
+// development where no authentication layer is in front of the app.
+const string PrincipalIdHeader = "X-MS-CLIENT-PRINCIPAL-ID";
+const string AuthRequiredMessage =
+    "Authentication required. Sign in to the app, or set VOICELIVE_ALLOW_ANONYMOUS=true for trusted local development.";
+
+bool AllowAnonymous() =>
+    string.Equals(EnvOrDefault("VOICELIVE_ALLOW_ANONYMOUS", "false").Trim(), "true",
+        StringComparison.OrdinalIgnoreCase);
+
+bool IsAuthenticated(HttpContext context) =>
+    AllowAnonymous() || !string.IsNullOrWhiteSpace(context.Request.Headers[PrincipalIdHeader].ToString());
+
+bool AllowClientAgentOverride() =>
+    string.Equals(EnvOrDefault("VOICELIVE_ALLOW_CLIENT_AGENT_OVERRIDE", "false").Trim(), "true",
+        StringComparison.OrdinalIgnoreCase);
+
 // ---------------------------------------------------------------------------
 // Middleware
 // ---------------------------------------------------------------------------
@@ -93,6 +117,15 @@ app.Use(async (context, next) =>
         var clientId = pathSegments?.LastOrDefault() ?? "unknown";
 
         using var ws = await context.WebSockets.AcceptWebSocketAsync();
+        if (!IsAuthenticated(context))
+        {
+            logger.LogWarning("Rejected unauthenticated WebSocket for {ClientId}", clientId);
+            var errorJson = JsonSerializer.Serialize(
+                new Dictionary<string, object> { ["type"] = "error", ["message"] = AuthRequiredMessage }, jsonOptions);
+            await ws.SendAsync(Encoding.UTF8.GetBytes(errorJson), WebSocketMessageType.Text, true, CancellationToken.None);
+            await ws.CloseAsync(WebSocketCloseStatus.PolicyViolation, "Authentication required", CancellationToken.None);
+            return;
+        }
         logger.LogInformation("Client {ClientId} connected", clientId);
 
         // Thread-safe WebSocket sender
@@ -181,6 +214,8 @@ app.MapGet("/config", () =>
         agentName = EnvOrDefault("AZURE_VOICELIVE_AGENT_NAME", ""),
         project = EnvOrDefault("AZURE_VOICELIVE_PROJECT", ""),
         authMethod = apiKey != null ? "api_key" : "default_credential",
+        allowClientAgentOverride = AllowClientAgentOverride(),
+        authRequired = !AllowAnonymous(),
     };
 });
 
@@ -310,7 +345,7 @@ async Task StartSessionAsync(string clientId, JsonNode msg, Func<Dictionary<stri
         var credential = GetCredential();
 
         // Build SessionConfig — frontend values override .env defaults
-        var config = BuildSessionConfig(msg);
+        var config = BuildSessionConfig(clientId, msg);
 
         var handlerLogger = app.Services.GetRequiredService<ILoggerFactory>().CreateLogger<VoiceLiveHandler>();
         var handler = new VoiceLiveHandler(clientId, endpoint, credential, sendToClient, config, handlerLogger);
@@ -355,9 +390,24 @@ async Task CleanupClientAsync(string clientId)
 // Session config builder
 // ===========================================================================
 
-SessionConfig BuildSessionConfig(JsonNode msg)
+SessionConfig BuildSessionConfig(string clientId, JsonNode msg)
 {
-    return new SessionConfig
+    var allowOverride = AllowClientAgentOverride();
+    var ignoredFields = new List<string>();
+
+    string? AgentRoutingValue(string key, string envKey)
+    {
+        string? clientValue = null;
+        try { clientValue = msg[key]?.GetValue<string>(); } catch { }
+        if (!string.IsNullOrWhiteSpace(clientValue))
+        {
+            if (allowOverride) return clientValue;
+            ignoredFields.Add(key);
+        }
+        return EnvOrNull(envKey);
+    }
+
+    var config = new SessionConfig
     {
         Mode = GetStringOrEnv(msg, "mode", "VOICELIVE_MODE", "model"),
         Model = GetStringOrEnv(msg, "model", "VOICELIVE_MODEL", "gpt-realtime"),
@@ -371,14 +421,14 @@ SessionConfig BuildSessionConfig(JsonNode msg)
         VadType = GetStringOrEnv(msg, "vad_type", "VOICELIVE_VAD_TYPE", "azure_semantic"),
         NoiseReduction = GetBoolOrDefault(msg, "noise_reduction", true),
         EchoCancellation = GetBoolOrDefault(msg, "echo_cancellation", true),
-        AgentName = GetStringOrEnv(msg, "agent_name", "AZURE_VOICELIVE_AGENT_NAME", null) ?? "",
-        ProjectName = GetStringOrEnv(msg, "project", "AZURE_VOICELIVE_PROJECT", null) ?? "",
-        AgentVersion = GetStringOrEnv(msg, "agent_version", "AZURE_VOICELIVE_AGENT_VERSION", null),
+        AgentName = AgentRoutingValue("agent_name", "AZURE_VOICELIVE_AGENT_NAME") ?? "",
+        ProjectName = AgentRoutingValue("project", "AZURE_VOICELIVE_PROJECT") ?? "",
+        AgentVersion = AgentRoutingValue("agent_version", "AZURE_VOICELIVE_AGENT_VERSION"),
         ConversationId = GetStringOrDefault(msg, "conversation_id", null),
-        FoundryResourceOverride = GetStringOrEnv(msg, "foundry_resource_override",
-            "AZURE_VOICELIVE_FOUNDRY_RESOURCE_OVERRIDE", null),
-        AuthIdentityClientId = GetStringOrEnv(msg, "auth_identity_client_id",
-            "AZURE_VOICELIVE_AUTH_IDENTITY_CLIENT_ID", null),
+        FoundryResourceOverride = AgentRoutingValue("foundry_resource_override",
+            "AZURE_VOICELIVE_FOUNDRY_RESOURCE_OVERRIDE"),
+        AuthIdentityClientId = AgentRoutingValue("auth_identity_client_id",
+            "AZURE_VOICELIVE_AUTH_IDENTITY_CLIENT_ID"),
         ByomProfile = EnvOrNull("VOICELIVE_BYOM_PROFILE"),
         ProactiveGreeting = GetBoolOrDefault(msg, "proactive_greeting", true),
         GreetingType = GetStringOrDefault(msg, "greeting_type", "llm"),
@@ -391,6 +441,14 @@ SessionConfig BuildSessionConfig(JsonNode msg)
         InterimInstructions = GetStringOrDefault(msg, "interim_instructions", "") ?? "",
         InterimStaticTexts = GetStringOrDefault(msg, "interim_static_texts", "") ?? "",
     };
+
+    if (ignoredFields.Count > 0)
+    {
+        logger.LogWarning(
+            "Ignoring client-supplied {Fields} for {ClientId}; set VOICELIVE_ALLOW_CLIENT_AGENT_OVERRIDE=true to allow (trusted local use only)",
+            string.Join(", ", ignoredFields), clientId);
+    }
+    return config;
 }
 
 // ===========================================================================

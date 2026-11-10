@@ -53,6 +53,70 @@ _handlers: Dict[str, VoiceLiveHandler] = {}
 # Shared credential — created once, reused across sessions
 _credential: Optional[Any] = None
 
+# Session fields that choose which Foundry resource, project, agent, or managed
+# identity the server's own credential is used against. These come from server
+# configuration only. A WebSocket client can override them only when the
+# deployment explicitly opts in with VOICELIVE_ALLOW_CLIENT_AGENT_OVERRIDE=true
+# (intended for trusted local development, never for a publicly reachable app).
+_AGENT_ROUTING_FIELDS: Dict[str, str] = {
+    "agent_name": "AZURE_VOICELIVE_AGENT_NAME",
+    "project": "AZURE_VOICELIVE_PROJECT",
+    "agent_version": "AZURE_VOICELIVE_AGENT_VERSION",
+    "foundry_resource_override": "AZURE_VOICELIVE_FOUNDRY_RESOURCE_OVERRIDE",
+    "auth_identity_client_id": "AZURE_VOICELIVE_AUTH_IDENTITY_CLIENT_ID",
+}
+
+
+# /ws requires a signed-in user by default. In Azure Container Apps, built-in
+# authentication (Easy Auth) sets this header after signing the user in; external
+# requests cannot set it. Set VOICELIVE_ALLOW_ANONYMOUS=true only for trusted local
+# development where no authentication layer is in front of the app.
+_PRINCIPAL_ID_HEADER = "x-ms-client-principal-id"
+_AUTH_REQUIRED_MESSAGE = (
+    "Authentication required. Sign in to the app, or set VOICELIVE_ALLOW_ANONYMOUS=true "
+    "for trusted local development."
+)
+# WebSocket close code for a policy violation (RFC 6455)
+_WS_POLICY_VIOLATION = 1008
+
+
+def _allow_anonymous() -> bool:
+    """Return True when /ws may be used without a signed-in user."""
+    return os.getenv("VOICELIVE_ALLOW_ANONYMOUS", "false").strip().lower() == "true"
+
+
+def _is_authenticated(websocket: WebSocket) -> bool:
+    """Return True when the request carries a platform-authenticated user or anonymous use is allowed."""
+    if _allow_anonymous():
+        return True
+    return bool(websocket.headers.get(_PRINCIPAL_ID_HEADER, "").strip())
+
+
+def _allow_client_agent_override() -> bool:
+    """Return True when clients may choose the agent, project, resource, or identity."""
+    return os.getenv("VOICELIVE_ALLOW_CLIENT_AGENT_OVERRIDE", "false").strip().lower() == "true"
+
+
+def _resolve_agent_routing(client_id: str, config: dict) -> Dict[str, Optional[str]]:
+    """Resolve agent routing fields, ignoring client values unless overrides are allowed."""
+    allow_override = _allow_client_agent_override()
+    resolved: Dict[str, Optional[str]] = {}
+    ignored: List[str] = []
+    for field, env_name in _AGENT_ROUTING_FIELDS.items():
+        client_value = config.get(field)
+        if allow_override and client_value:
+            resolved[field] = client_value
+            continue
+        if client_value:
+            ignored.append(field)
+        resolved[field] = os.getenv(env_name) or None
+    if ignored:
+        logger.warning(
+            f"Ignoring client-supplied {', '.join(ignored)} for {client_id}; "
+            "set VOICELIVE_ALLOW_CLIENT_AGENT_OVERRIDE=true to allow (trusted local use only)"
+        )
+    return resolved
+
 
 def _get_credential() -> Any:
     """Return a shared credential instance (API key or DefaultAzureCredential)."""
@@ -118,6 +182,8 @@ async def get_config():
         "agentName": os.getenv("AZURE_VOICELIVE_AGENT_NAME", ""),
         "project": os.getenv("AZURE_VOICELIVE_PROJECT", ""),
         "authMethod": "api_key" if os.getenv("AZURE_VOICELIVE_API_KEY") else "default_credential",
+        "allowClientAgentOverride": _allow_client_agent_override(),
+        "authRequired": not _allow_anonymous(),
     }
 
 
@@ -183,6 +249,11 @@ async def websocket_endpoint(websocket: WebSocket, client_id: str):
     # Sanitize user-controlled client_id to prevent log injection
     client_id = client_id.replace("\n", "").replace("\r", "").replace("\t", "")
     await websocket.accept()
+    if not _is_authenticated(websocket):
+        logger.warning(f"Rejected unauthenticated WebSocket for {client_id}")
+        await websocket.send_text(json.dumps({"type": "error", "message": _AUTH_REQUIRED_MESSAGE}))
+        await websocket.close(code=_WS_POLICY_VIOLATION)
+        return
     logger.info(f"Client {client_id} connected")
 
     try:
@@ -241,6 +312,7 @@ async def _start_session(client_id: str, config: dict, websocket: WebSocket):
             raise ValueError("Missing AZURE_VOICELIVE_ENDPOINT")
 
         credential = _get_credential()
+        agent_routing = _resolve_agent_routing(client_id, config)
 
         async def send_to_client(msg: dict):
             try:
@@ -261,12 +333,12 @@ async def _start_session(client_id: str, config: dict, websocket: WebSocket):
             vad_type=config.get("vad_type", os.getenv("VOICELIVE_VAD_TYPE", "azure_semantic")),
             noise_reduction=config.get("noise_reduction", True),
             echo_cancellation=config.get("echo_cancellation", True),
-            agent_name=config.get("agent_name") or os.getenv("AZURE_VOICELIVE_AGENT_NAME"),
-            project_name=config.get("project") or os.getenv("AZURE_VOICELIVE_PROJECT"),
-            agent_version=config.get("agent_version") or os.getenv("AZURE_VOICELIVE_AGENT_VERSION"),
+            agent_name=agent_routing["agent_name"],
+            project_name=agent_routing["project"],
+            agent_version=agent_routing["agent_version"],
             conversation_id=config.get("conversation_id"),
-            foundry_resource_override=config.get("foundry_resource_override") or os.getenv("AZURE_VOICELIVE_FOUNDRY_RESOURCE_OVERRIDE"),
-            auth_identity_client_id=config.get("auth_identity_client_id") or os.getenv("AZURE_VOICELIVE_AUTH_IDENTITY_CLIENT_ID"),
+            foundry_resource_override=agent_routing["foundry_resource_override"],
+            auth_identity_client_id=agent_routing["auth_identity_client_id"],
             byom_profile=os.getenv("VOICELIVE_BYOM_PROFILE"),
             proactive_greeting=config.get("proactive_greeting", True),
             greeting_type=config.get("greeting_type", "llm"),

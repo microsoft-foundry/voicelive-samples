@@ -29,6 +29,7 @@ const DEFAULT_SETTINGS: VoiceSettings = {
   conversationId: '',
   foundryResourceOverride: '',
   authIdentityClientId: '',
+  allowClientAgentOverride: false,
   proactiveGreeting: true,
   greetingType: 'llm',
   greetingText: '',
@@ -75,6 +76,7 @@ export function useVoiceSession() {
             instructions: cfg.instructions ?? prev.instructions,
             agentName: cfg.agentName || prev.agentName,
             project: cfg.project || prev.project,
+            allowClientAgentOverride: cfg.allowClientAgentOverride === true,
           };
           // Auto-correct transcribeModel for cascaded (text) models
           const MULTIMODAL = ['gpt-realtime', 'gpt-realtime-mini', 'phi4-mm-realtime', 'phi4-mini'];
@@ -231,12 +233,15 @@ export function useVoiceSession() {
           config.temperature = settings.temperature;
           if (settings.transcribeModel) config.transcribe_model = settings.transcribeModel;
         } else {
-          if (settings.agentName) config.agent_name = settings.agentName;
-          if (settings.project) config.project = settings.project;
-          if (settings.agentVersion) config.agent_version = settings.agentVersion;
+          // Agent routing is server-controlled unless the server explicitly allows overrides
+          if (settings.allowClientAgentOverride) {
+            if (settings.agentName) config.agent_name = settings.agentName;
+            if (settings.project) config.project = settings.project;
+            if (settings.agentVersion) config.agent_version = settings.agentVersion;
+            if (settings.foundryResourceOverride) config.foundry_resource_override = settings.foundryResourceOverride;
+            if (settings.authIdentityClientId) config.auth_identity_client_id = settings.authIdentityClientId;
+          }
           if (settings.conversationId) config.conversation_id = settings.conversationId;
-          if (settings.foundryResourceOverride) config.foundry_resource_override = settings.foundryResourceOverride;
-          if (settings.authIdentityClientId) config.auth_identity_client_id = settings.authIdentityClientId;
         }
 
         // Speech input language (shared between modes)

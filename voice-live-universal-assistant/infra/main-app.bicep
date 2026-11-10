@@ -22,6 +22,9 @@ param voiceLiveTranscribeModel string
 @description('Foundry project endpoint (set by createFoundry or user-provided)')
 param voiceLiveProjectEndpoint string = ''
 
+@description('Allow unauthenticated /ws connections (sets VOICELIVE_ALLOW_ANONYMOUS)')
+param allowAnonymous bool = false
+
 var abbrs = loadJsonContent('./abbreviations.json')
 
 module webApp './core/host/container-app.bicep' = {
@@ -49,6 +52,10 @@ module webApp './core/host/container-app.bicep' = {
         {
           name: 'VOICELIVE_MODE'
           value: voiceLiveMode
+        }
+        {
+          name: 'VOICELIVE_ALLOW_ANONYMOUS'
+          value: string(allowAnonymous)
         }
         {
           name: 'AZURE_VOICELIVE_AGENT_NAME'

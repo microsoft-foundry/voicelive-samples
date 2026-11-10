@@ -65,8 +65,8 @@ All settings are configurable from the frontend UI. Default values can be set vi
 ## Running Tests
 
 ```bash
-pip install pytest
-python -m pytest tests/ -v
+pip install pytest httpx
+python -m pytest tests/test_settings_e2e.py tests/test_agent_routing.py tests/test_ws_auth.py -v
 ```
 
 ## Notes
